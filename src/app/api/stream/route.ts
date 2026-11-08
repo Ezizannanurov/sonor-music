@@ -52,9 +52,10 @@ async function resolveYtAudioUrl(searchTerm: string): Promise<string | null> {
     const { stdout } = await execFileAsync('yt-dlp', [
       '-g',
       '-f', 'ba/b',
-      '--js-runtimes', 'node',
+      '--extractor-args', 'youtube:player_client=android,ios',
+      '--no-warnings',
       `ytsearch1:${searchTerm}`,
-    ], { timeout: 12000 });
+    ], { timeout: 15000 });
 
     const directUrl = stdout.trim();
     if (directUrl && directUrl.startsWith('http')) {
