@@ -1,14 +1,15 @@
 import { Track } from '@/types/track';
 
 const DB_NAME = 'sonor_music_offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // Incremented for arrayBuffer migration
 const STORE_NAME = 'tracks';
 
 export interface StoredOfflineRecord {
   id: string;
   track: Track;
-  audioBlob: Blob;
-  thumbnailBlob?: Blob;
+  audioBuffer?: ArrayBuffer;
+  audioBlob?: Blob; // Legacy fallback
+  mimeType?: string;
   thumbnailDataUrl?: string;
   size: number;
   downloadedAt: number;
@@ -51,7 +52,7 @@ export async function isTrackOffline(trackId: string): Promise<boolean> {
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.get(trackId);
+      const req = store.get(String(trackId));
       req.onsuccess = () => resolve(Boolean(req.result));
       req.onerror = () => resolve(false);
     });
@@ -61,7 +62,7 @@ export async function isTrackOffline(trackId: string): Promise<boolean> {
 }
 
 /**
- * Fetches all downloaded offline tracks list.
+ * Fetches all cached offline tracks list.
  */
 export async function getAllOfflineTracks(): Promise<Track[]> {
   if (typeof window === 'undefined') return [];
@@ -73,7 +74,7 @@ export async function getAllOfflineTracks(): Promise<Track[]> {
       const req = store.getAll();
       req.onsuccess = () => {
         const records = (req.result || []) as StoredOfflineRecord[];
-        // Sort newest downloaded first
+        // Sort newest cached first
         records.sort((a, b) => (b.downloadedAt || 0) - (a.downloadedAt || 0));
         const tracks = records.map((r) => {
           const track = { ...r.track };
@@ -106,16 +107,25 @@ export async function getOfflineAudioUrl(trackId: string): Promise<string | null
     return new Promise((resolve) => {
       const tx = db.transaction(STORE_NAME, 'readonly');
       const store = tx.objectStore(STORE_NAME);
-      const req = store.get(trackId);
+      const req = store.get(String(trackId));
       req.onsuccess = () => {
         const record = req.result as StoredOfflineRecord | undefined;
-        if (record && record.audioBlob) {
-          const url = URL.createObjectURL(record.audioBlob);
-          activeObjectUrls.set(trackId, url);
-          resolve(url);
-        } else {
-          resolve(null);
+        if (record) {
+          let blob: Blob | null = null;
+          if (record.audioBuffer) {
+            blob = new Blob([record.audioBuffer], { type: record.mimeType || 'audio/mpeg' });
+          } else if (record.audioBlob) {
+            blob = record.audioBlob;
+          }
+
+          if (blob && blob.size > 1000) {
+            const url = URL.createObjectURL(blob);
+            activeObjectUrls.set(trackId, url);
+            resolve(url);
+            return;
+          }
         }
+        resolve(null);
       };
       req.onerror = () => resolve(null);
     });
@@ -125,7 +135,7 @@ export async function getOfflineAudioUrl(trackId: string): Promise<string | null
 }
 
 /**
- * Downloads and caches a track + cover thumbnail for offline listening.
+ * Caches a track and cover thumbnail inside app IndexedDB for offline listening.
  */
 export async function saveTrackOffline(
   track: Track,
@@ -140,26 +150,38 @@ export async function saveTrackOffline(
     streamUrl = fallbackStreamUrl;
   }
 
-  // 1. Fetch audio stream as Blob
+  // Ensure absolute URL if running inside Capacitor local origin
+  if (!streamUrl.startsWith('http://') && !streamUrl.startsWith('https://')) {
+    const origin = typeof window !== 'undefined' && window.location ? window.location.origin : '';
+    if (origin.includes('localhost') || !origin) {
+      streamUrl = `https://sonor-music-ubvp.onrender.com${streamUrl.startsWith('/') ? streamUrl : '/' + streamUrl}`;
+    }
+  }
+
   onProgress?.(15);
   let audioRes = await fetch(streamUrl).catch(() => null);
 
-  // If primary stream URL fails or returns non-200, retry with universal resolver
-  if ((!audioRes || !audioRes.ok) && streamUrl !== fallbackStreamUrl) {
-    onProgress?.(25);
-    streamUrl = fallbackStreamUrl;
-    audioRes = await fetch(streamUrl).catch(() => null);
+  // If primary stream URL fails or returns non-200, retry with universal fallback URL
+  if ((!audioRes || !audioRes.ok) && !streamUrl.includes('/api/stream?')) {
+    onProgress?.(30);
+    const absFallback = `https://sonor-music-ubvp.onrender.com${fallbackStreamUrl}`;
+    audioRes = await fetch(absFallback).catch(() => null);
   }
 
   if (!audioRes || !audioRes.ok) {
-    throw new Error(`Не удалось загрузить аудио: HTTP ${audioRes?.status || 'network error'}`);
+    throw new Error(`Не удалось загрузить аудио: HTTP ${audioRes?.status || 'ошибка сети'}`);
   }
 
-  onProgress?.(55);
-  const audioBlob = await audioRes.blob();
-  onProgress?.(75);
+  onProgress?.(50);
+  const audioBuffer = await audioRes.arrayBuffer();
+  if (!audioBuffer || audioBuffer.byteLength < 10000) {
+    throw new Error('Полученный аудиопоток пуст или недоступен для кеширования');
+  }
 
-  // 2. Fetch cover thumbnail to base64 data url for full offline display
+  onProgress?.(75);
+  const mimeType = audioRes.headers.get('content-type') || 'audio/mpeg';
+
+  // Fetch cover thumbnail to base64 data url for full offline display
   let thumbnailDataUrl: string | undefined;
   if (track.thumbnail && !track.thumbnail.startsWith('data:')) {
     try {
@@ -174,40 +196,39 @@ export async function saveTrackOffline(
         });
       }
     } catch {
-      // Keep remote thumbnail url if CORS prevents reading
       thumbnailDataUrl = track.thumbnail;
     }
   }
 
   onProgress?.(90);
-
-  // 3. Store record into IndexedDB
   const db = await getDB();
   const record: StoredOfflineRecord = {
-    id: track.id,
+    id: String(track.id),
     track: {
       ...track,
       thumbnail: thumbnailDataUrl || track.thumbnail,
     },
-    audioBlob,
+    audioBuffer,
+    mimeType,
     thumbnailDataUrl,
-    size: audioBlob.size,
+    size: audioBuffer.byteLength,
     downloadedAt: Date.now(),
   };
 
   await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, 'readwrite');
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error);
     const store = tx.objectStore(STORE_NAME);
-    const req = store.put(record);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
+    store.put(record);
   });
 
   onProgress?.(100);
 }
 
 /**
- * Removes a track from offline cache.
+ * Removes a track from in-app cache.
  */
 export async function deleteOfflineTrack(trackId: string): Promise<void> {
   if (typeof window === 'undefined') return;
@@ -220,16 +241,14 @@ export async function deleteOfflineTrack(trackId: string): Promise<void> {
     }
 
     const db = await getDB();
-    await new Promise<void>((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
       const store = tx.objectStore(STORE_NAME);
-      const req = store.delete(trackId);
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      store.delete(String(trackId));
     });
-  } catch (err) {
-    console.error('Delete offline track error:', err);
-  }
+  } catch {}
 }
 
 /**
@@ -238,7 +257,7 @@ export async function deleteOfflineTrack(trackId: string): Promise<void> {
 export async function clearAllOfflineTracks(): Promise<void> {
   if (typeof window === 'undefined') return;
   try {
-    for (const [, url] of activeObjectUrls.entries()) {
+    for (const url of activeObjectUrls.values()) {
       try {
         URL.revokeObjectURL(url);
       } catch {}
@@ -246,61 +265,12 @@ export async function clearAllOfflineTracks(): Promise<void> {
     activeObjectUrls.clear();
 
     const db = await getDB();
-    await new Promise<void>((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const tx = db.transaction(STORE_NAME, 'readwrite');
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
       const store = tx.objectStore(STORE_NAME);
-      const req = store.clear();
-      req.onsuccess = () => resolve();
-      req.onerror = () => reject(req.error);
+      store.clear();
     });
-  } catch (err) {
-    console.error('Clear offline tracks error:', err);
-  }
-}
-
-/**
- * Exports/saves the track directly as an MP3 file to the user's Downloads folder.
- */
-export async function exportTrackFile(track: Track): Promise<void> {
-  let blob: Blob | null = null;
-
-  // Try from offline cache first
-  try {
-    const db = await getDB();
-    const record = await new Promise<StoredOfflineRecord | undefined>((resolve) => {
-      const tx = db.transaction(STORE_NAME, 'readonly');
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.get(track.id);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => resolve(undefined);
-    });
-    if (record?.audioBlob) {
-      blob = record.audioBlob;
-    }
   } catch {}
-
-  // If not in cache, fetch it
-  if (!blob) {
-    const streamUrl =
-      track.streamUrl ||
-      `/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`;
-    const res = await fetch(streamUrl);
-    if (!res.ok) throw new Error('Не удалось получить аудиофайл');
-    blob = await res.blob();
-  }
-
-  const url = URL.createObjectURL(blob);
-  const safeFilename = `${track.artist} - ${track.title}`
-    .replace(/[/\\?%*:|"<>]/g, '_')
-    .slice(0, 100);
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${safeFilename}.mp3`;
-  document.body.appendChild(a);
-  a.click();
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 1000);
 }

@@ -44,6 +44,19 @@ export default function RootLayout({
       </head>
       <body className="min-h-full bg-black text-zinc-100 flex flex-col antialiased selection:bg-indigo-500/30">
         <Providers>{children}</Providers>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').catch(function(err) {
+                    console.log('SW registration failed:', err);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );

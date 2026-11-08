@@ -5,7 +5,7 @@ import {
   Play, Pause, SkipBack, SkipForward, 
   ListMusic, ChevronDown, Shuffle, Repeat, Repeat1, 
   Volume2, VolumeX, ListPlus, Maximize2, Sparkles, Share2,
-  ArrowDownToLine, CheckCircle2, Loader2, HardDriveDownload
+  ArrowDownToLine, CheckCircle2, Loader2
 } from 'lucide-react';
 import PulseHeart from './PulseHeart';
 import { Track } from '@/types/track';
@@ -33,7 +33,6 @@ interface SpotifyPlayerProps {
   isOffline?: boolean;
   isDownloading?: boolean;
   onToggleOffline?: (track: Track) => void;
-  onExportFile?: (track: Track) => void;
   isShuffle: boolean;
   onToggleShuffle: () => void;
   repeatMode: 'off' | 'all' | 'one';
@@ -66,7 +65,6 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
   isOffline = false,
   isDownloading = false,
   onToggleOffline,
-  onExportFile,
   isShuffle,
   onToggleShuffle,
   repeatMode,
@@ -313,10 +311,10 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
                     }`}
                     title={
                       isDownloading
-                        ? 'Скачивание трека...'
+                        ? 'Кеширование трека...'
                         : isOffline
-                        ? 'Сохранено офлайн (нажмите для удаления)'
-                        : 'Скачать на телефон для офлайн'
+                        ? 'Сохранено в кеше (нажмите для удаления)'
+                        : 'Сохранить в кеш для офлайн'
                     }
                   >
                     {isDownloading ? (
@@ -326,17 +324,6 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
                     ) : (
                       <ArrowDownToLine className="w-5 h-5" />
                     )}
-                  </button>
-                )}
-
-                {onExportFile && (
-                  <button
-                    type="button"
-                    onClick={() => onExportFile(currentTrack)}
-                    className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition active:scale-95"
-                    title="Сохранить файл MP3 в память телефона"
-                  >
-                    <HardDriveDownload className="w-5 h-5" />
                   </button>
                 )}
 

@@ -33,8 +33,7 @@ import {
   saveTrackOffline, 
   deleteOfflineTrack, 
   clearAllOfflineTracks, 
-  getOfflineAudioUrl, 
-  exportTrackFile 
+  getOfflineAudioUrl
 } from '@/lib/offlineStorage';
 
 const GENRES = ['Phonk', 'Synthwave', 'Hip-Hop', 'Nightcore', 'Lo-Fi', 'Rock'];
@@ -196,10 +195,21 @@ export default function App() {
       // ignore
     }
 
-    // Load offline tracks from IndexedDB
+    // Load offline tracks from IndexedDB immediately
     getAllOfflineTracks().then((cached) => {
       setOfflineTracks(cached);
     }).catch(console.error);
+
+    // Instantly load cached home tracks from localStorage so UI is immediately usable
+    try {
+      const cachedHome = localStorage.getItem('sonor_cached_home_tracks');
+      if (cachedHome) {
+        const parsed = JSON.parse(cachedHome);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setHomeTracks(parsed);
+        }
+      }
+    } catch {}
 
     // Network connectivity tracking
     if (typeof window !== 'undefined') {
@@ -219,7 +229,10 @@ export default function App() {
   }, [user?.id]);
 
   const loadHomeContent = async () => {
-    setIsLoading(true);
+    // Only show loader if we have zero cached tracks
+    if (homeTracks.length === 0) {
+      setIsLoading(true);
+    }
     try {
       const [resSpotify, resSc] = await Promise.allSettled([
         fetch('/api/search/spotify?q=Trending+Hits+2025').then((r) => r.json()),
@@ -234,7 +247,12 @@ export default function App() {
         tracks = [...tracks, ...resSc.value.tracks];
       }
 
-      setHomeTracks(tracks);
+      if (tracks.length > 0) {
+        setHomeTracks(tracks);
+        try {
+          localStorage.setItem('sonor_cached_home_tracks', JSON.stringify(tracks));
+        } catch {}
+      }
     } catch (err) {
       console.error(err);
     } finally {
@@ -358,6 +376,11 @@ export default function App() {
     }
 
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
+
+    // Android & Mobile Background WakeLock: keeps audio running even with screen locked
+    if (isPlaying && typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+      (navigator as any).wakeLock?.request('screen').catch(() => {});
+    }
   }, [currentTrack, isPlaying]);
 
   // PWA Install Prompt Listener
@@ -552,20 +575,20 @@ export default function App() {
     if (isDownloaded) {
       await deleteOfflineTrack(track.id);
       setOfflineTracks((prev) => prev.filter((t) => t.id !== track.id));
-      setOfflineAlert(`Трек «${track.title}» удалён из офлайн-памяти.`);
+      setOfflineAlert(`Трек «${track.title}» удалён из кеша.`);
       setTimeout(() => setOfflineAlert(null), 3000);
     } else {
       setDownloadingIds((prev) => new Set(prev).add(track.id));
-      setOfflineAlert(`Скачивание «${track.title}» в память телефона...`);
+      setOfflineAlert(`Кеширование «${track.title}» в память приложения...`);
       try {
         await saveTrackOffline(track);
         const updated = await getAllOfflineTracks();
         setOfflineTracks(updated);
-        setOfflineAlert(`✓ Трек «${track.title}» сохранён! Теперь он доступен без интернета.`);
+        setOfflineAlert(`✓ Трек «${track.title}» закеширован! Доступен без интернета.`);
         setTimeout(() => setOfflineAlert(null), 4000);
       } catch (err: any) {
-        console.error('Download error:', err);
-        setOfflineAlert(`Ошибка сохранения: ${err?.message || 'проверьте подключение'}`);
+        console.error('Caching error:', err);
+        setOfflineAlert(`Ошибка кеширования: ${err?.message || 'проверьте подключение'}`);
         setTimeout(() => setOfflineAlert(null), 4000);
       } finally {
         setDownloadingIds((prev) => {
@@ -574,19 +597,6 @@ export default function App() {
           return next;
         });
       }
-    }
-  };
-
-  const handleExportFile = async (track: Track) => {
-    try {
-      setOfflineAlert(`Сохранение MP3 «${track.title}» на устройство...`);
-      await exportTrackFile(track);
-      setOfflineAlert(`✓ Файл «${track.artist} - ${track.title}.mp3» сохранён в загрузки!`);
-      setTimeout(() => setOfflineAlert(null), 3000);
-    } catch (err: any) {
-      console.error('Export file error:', err);
-      setOfflineAlert(`Не удалось сохранить файл: ${err?.message || 'ошибка'}`);
-      setTimeout(() => setOfflineAlert(null), 4000);
     }
   };
 
@@ -1545,7 +1555,6 @@ export default function App() {
           isOffline={Boolean(currentTrack && offlineTracks.some((t) => t.id === currentTrack.id))}
           isDownloading={Boolean(currentTrack && downloadingIds.has(currentTrack.id))}
           onToggleOffline={handleToggleOffline}
-          onExportFile={handleExportFile}
           onToggleQueue={() => setIsQueueOpen(!isQueueOpen)}
           isQueueOpen={isQueueOpen}
           onOpenAddToPlaylist={(t) => setTrackToAddToPlaylist(t)}
