@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'fm.sonor.music',
+  appId: 'fm.pulse.music',
   appName: 'Sonor Music',
   webDir: 'public',
   server: {

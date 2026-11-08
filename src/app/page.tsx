@@ -1427,31 +1427,29 @@ export default function App() {
                   {/* Library Navigation: Playlists, Favorites, Downloads, Queue */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-white/5">
                     <div className="w-full sm:w-auto overflow-x-auto scrollbar-none touch-pan-x -mx-3 px-3 sm:mx-0 sm:px-0">
-                      <div className="min-w-max flex items-center py-0.5">
-                        <JellyRadio
-                          items={[
-                            { value: 'playlists', label: `Плейлисты (${playlists.length})` },
-                            { value: 'favorites', label: `Любимые (${favorites.length})` },
-                            { value: 'downloads', label: `Офлайн (${offlineTracks.length})` },
-                            { value: 'queue', label: `Очередь (${queue.length})` }
-                          ]}
-                          value={libraryTab}
-                          onChange={(val) => setLibraryTab(val as 'playlists' | 'favorites' | 'downloads' | 'queue')}
-                          chipColor="#18181b"
-                          activeColor="#ffffff"
-                          textColor="#a1a1aa"
-                          activeTextColor="#09090b"
-                          size="sm"
-                          gap={6}
-                          radius={16}
-                          swell={0.2}
-                          barge={5}
-                          shrink={0.05}
-                          jelly={1}
-                          bounce={0.25}
-                          stagger={22}
-                          stiffness={580}
-                        />
+                      <div className="flex items-center gap-2 min-w-max py-1">
+                        {[
+                          { id: 'playlists', label: `Плейлисты (${playlists.length})` },
+                          { id: 'favorites', label: `Понравившиеся (${favorites.length})` },
+                          { id: 'downloads', label: `Офлайн (${offlineTracks.length})` },
+                          { id: 'queue', label: `Очередь (${queue.length})` },
+                        ].map((tab) => {
+                          const isActive = libraryTab === tab.id;
+                          return (
+                            <button
+                              key={tab.id}
+                              type="button"
+                              onClick={() => setLibraryTab(tab.id as any)}
+                              className={`px-4 py-2 rounded-full text-xs font-medium whitespace-nowrap transition-all duration-150 select-none active:scale-95 flex items-center gap-1.5 ${
+                                isActive
+                                  ? 'bg-white text-black font-semibold shadow-md shadow-white/10'
+                                  : 'bg-zinc-900/90 hover:bg-zinc-800 text-zinc-300 hover:text-white border border-white/10'
+                              }`}
+                            >
+                              <span>{tab.label}</span>
+                            </button>
+                          );
+                        })}
                       </div>
                     </div>
 
