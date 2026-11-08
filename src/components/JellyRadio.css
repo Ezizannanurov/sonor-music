@@ -19,6 +19,15 @@
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+.jelly-radio::-webkit-scrollbar {
+  display: none;
 }
 
 .jelly-radio[data-disabled] {

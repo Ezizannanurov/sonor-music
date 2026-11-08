@@ -27,12 +27,16 @@ export interface MediaPlaybackPlugin {
   seekTo(options: { position: number }): Promise<{ success: boolean }>;
   setSpeed(options: { speed: number }): Promise<{ success: boolean }>;
   setVolume(options: { volume: number }): Promise<{ success: boolean }>;
+  setRepeat(options: { mode: 'off' | 'all' | 'one' }): Promise<{ success: boolean }>;
+  setShuffle(options: { shuffle: boolean }): Promise<{ success: boolean }>;
   getPlaybackState(): Promise<{
     isPlaying: boolean;
     currentTime: number;
     duration: number;
     currentTrack?: NativeTrack;
     currentIndex?: number;
+    repeatMode?: 'off' | 'all' | 'one';
+    isShuffle?: boolean;
   }>;
   cacheTrack(options: { id: string; url: string }): Promise<{ success: boolean; path: string }>;
   isCached(options: { id: string }): Promise<{ isCached: boolean; path?: string }>;

@@ -40,18 +40,28 @@ import { MediaPlayback, isNativeApp } from '@/lib/nativePlayer';
 const GENRES = ['Phonk', 'Synthwave', 'Hip-Hop', 'Nightcore', 'Lo-Fi', 'Rock'];
 
 export default function App() {
-  const { user } = useAuth();
+  const { user, isAuthModalOpen, closeAuthModal } = useAuth();
   const {
     playlists,
     deletePlaylist,
     removeTrackFromPlaylist,
+    trackToAddToPlaylist,
     setTrackToAddToPlaylist,
+    isCreateModalOpen,
     setIsCreateModalOpen,
     activePlaylist,
     setActivePlaylist,
   } = usePlaylist();
 
   const [currentTab, setCurrentTab] = useState<NavTab>('home');
+  const tabHistoryRef = useRef<NavTab[]>(['home']);
+
+  const switchTab = (newTab: NavTab) => {
+    if (newTab !== currentTab) {
+      tabHistoryRef.current.push(newTab);
+      setCurrentTab(newTab);
+    }
+  };
   const [query, setQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('Phonk');
   const [sourceFilter, setSourceFilter] = useState<'all' | 'soundcloud' | 'spotify' | 'youtube'>('all');
@@ -402,19 +412,27 @@ export default function App() {
     if (!isNativeApp()) return;
 
     MediaPlayback.getPlaybackState().then((state) => {
-      if (state && state.currentTrack && state.isPlaying) {
-        setCurrentTrack({
-          id: state.currentTrack.id,
-          title: state.currentTrack.title,
-          artist: state.currentTrack.artist,
-          thumbnail: state.currentTrack.artwork || '',
-          streamUrl: state.currentTrack.url,
-          duration: state.duration || 0,
-          source: 'youtube',
-        });
-        setIsPlaying(Boolean(state.isPlaying));
-        if (state.currentTime) setCurrentTime(state.currentTime);
-        if (state.duration) setDuration(state.duration);
+      if (state) {
+        if (state.currentTrack && state.isPlaying) {
+          setCurrentTrack({
+            id: state.currentTrack.id,
+            title: state.currentTrack.title,
+            artist: state.currentTrack.artist,
+            thumbnail: state.currentTrack.artwork || '',
+            streamUrl: state.currentTrack.url,
+            duration: state.duration || 0,
+            source: 'youtube',
+          });
+          setIsPlaying(Boolean(state.isPlaying));
+          if (state.currentTime) setCurrentTime(state.currentTime);
+          if (state.duration) setDuration(state.duration);
+        }
+        if (state.repeatMode) {
+          setRepeatMode(state.repeatMode);
+        }
+        if (state.isShuffle !== undefined) {
+          setIsShuffle(Boolean(state.isShuffle));
+        }
       }
     }).catch(console.warn);
 
@@ -449,6 +467,80 @@ export default function App() {
       subTime.then((s) => s?.remove?.()).catch(() => {});
     };
   }, []);
+
+  // Hardware / Gesture Back Button handling for mobile
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    (window as any).handleHardwareBack = () => {
+      // 1. If player is expanded, close it first
+      if (isPlayerExpanded) {
+        setIsPlayerExpanded(false);
+        return true;
+      }
+
+      // 2. If queue drawer is open, close it
+      if (isQueueOpen) {
+        setIsQueueOpen(false);
+        return true;
+      }
+
+      // 3. If any modal is open, close it
+      if (isThemeOpen) {
+        setIsThemeOpen(false);
+        return true;
+      }
+      if (isAuthModalOpen) {
+        closeAuthModal();
+        return true;
+      }
+      if (isCreateModalOpen) {
+        setIsCreateModalOpen(false);
+        return true;
+      }
+      if (trackToAddToPlaylist) {
+        setTrackToAddToPlaylist(null);
+        return true;
+      }
+
+      // 4. If viewing inside a playlist in library, exit back to library list
+      if (activePlaylist) {
+        setActivePlaylist(null);
+        return true;
+      }
+
+      // 5. Navigate back to previous tab in history stack
+      if (tabHistoryRef.current.length > 1) {
+        tabHistoryRef.current.pop();
+        const prevTab = tabHistoryRef.current[tabHistoryRef.current.length - 1] || 'home';
+        setCurrentTab(prevTab);
+        return true;
+      }
+
+      // 6. If currently on any tab other than 'home', switch back to 'home'
+      if (currentTab !== 'home') {
+        setCurrentTab('home');
+        tabHistoryRef.current = ['home'];
+        return true;
+      }
+
+      // 7. Already at home with nothing open: return false to let Android minimize app
+      return false;
+    };
+  }, [
+    isPlayerExpanded,
+    isQueueOpen,
+    isThemeOpen,
+    isAuthModalOpen,
+    isCreateModalOpen,
+    trackToAddToPlaylist,
+    activePlaylist,
+    currentTab,
+    closeAuthModal,
+    setIsCreateModalOpen,
+    setTrackToAddToPlaylist,
+    setActivePlaylist
+  ]);
 
   // PWA Install Prompt Listener
   useEffect(() => {
@@ -816,6 +908,22 @@ export default function App() {
     }
   };
 
+  const handleToggleShuffle = () => {
+    const nextShuffle = !isShuffle;
+    setIsShuffle(nextShuffle);
+    if (isNativeApp()) {
+      MediaPlayback.setShuffle({ shuffle: nextShuffle }).catch(console.warn);
+    }
+  };
+
+  const handleToggleRepeat = () => {
+    const nextRepeat: 'off' | 'all' | 'one' = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+    setRepeatMode(nextRepeat);
+    if (isNativeApp()) {
+      MediaPlayback.setRepeat({ mode: nextRepeat }).catch(console.warn);
+    }
+  };
+
   const handlePlayPause = () => {
     if (!currentTrack) return;
     if (isNativeApp()) {
@@ -1024,12 +1132,12 @@ export default function App() {
             <UserMenu
               onOpenThemeModal={() => setIsThemeOpen(true)}
               onNavigateToPlaylists={() => {
-                setCurrentTab('library');
+                switchTab('library');
                 setLibraryTab('playlists');
                 setActivePlaylist(null);
               }}
               onNavigateToFavorites={() => {
-                setCurrentTab('library');
+                switchTab('library');
                 setLibraryTab('favorites');
                 setActivePlaylist(null);
               }}
@@ -1317,68 +1425,74 @@ export default function App() {
               ) : (
                 <>
                   {/* Library Navigation: Playlists, Favorites, Downloads, Queue */}
-                  <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                    <JellyRadio
-                      items={[
-                        { value: 'playlists', label: `Плейлисты (${playlists.length})` },
-                        { value: 'favorites', label: `Любимые (${favorites.length})` },
-                        { value: 'downloads', label: `Офлайн (${offlineTracks.length})` },
-                        { value: 'queue', label: `Очередь (${queue.length})` }
-                      ]}
-                      value={libraryTab}
-                      onChange={(val) => setLibraryTab(val as 'playlists' | 'favorites' | 'downloads' | 'queue')}
-                      chipColor="#18181b"
-                      activeColor="#ffffff"
-                      textColor="#a1a1aa"
-                      activeTextColor="#09090b"
-                      size="sm"
-                      gap={6}
-                      radius={16}
-                      swell={0.2}
-                      barge={5}
-                      shrink={0.05}
-                      jelly={1}
-                      bounce={0.25}
-                      stagger={22}
-                      stiffness={580}
-                    />
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-white/5">
+                    <div className="w-full sm:w-auto overflow-x-auto scrollbar-none touch-pan-x -mx-3 px-3 sm:mx-0 sm:px-0">
+                      <div className="min-w-max flex items-center py-0.5">
+                        <JellyRadio
+                          items={[
+                            { value: 'playlists', label: `Плейлисты (${playlists.length})` },
+                            { value: 'favorites', label: `Любимые (${favorites.length})` },
+                            { value: 'downloads', label: `Офлайн (${offlineTracks.length})` },
+                            { value: 'queue', label: `Очередь (${queue.length})` }
+                          ]}
+                          value={libraryTab}
+                          onChange={(val) => setLibraryTab(val as 'playlists' | 'favorites' | 'downloads' | 'queue')}
+                          chipColor="#18181b"
+                          activeColor="#ffffff"
+                          textColor="#a1a1aa"
+                          activeTextColor="#09090b"
+                          size="sm"
+                          gap={6}
+                          radius={16}
+                          swell={0.2}
+                          barge={5}
+                          shrink={0.05}
+                          jelly={1}
+                          bounce={0.25}
+                          stagger={22}
+                          stiffness={580}
+                        />
+                      </div>
+                    </div>
 
-                    {libraryTab === 'playlists' && (
-                      <button
-                        type="button"
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="text-xs font-semibold text-white bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition active:scale-95 shadow-sm"
-                      >
-                        <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-                        <span>Создать</span>
-                      </button>
-                    )}
+                    <div className="flex items-center justify-end gap-2 shrink-0">
+                      {libraryTab === 'playlists' && (
+                        <button
+                          type="button"
+                          onClick={() => setIsCreateModalOpen(true)}
+                          className="text-xs font-semibold text-white bg-white/10 hover:bg-white/15 border border-white/15 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition active:scale-95 shadow-sm"
+                        >
+                          <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>Создать плейлист</span>
+                        </button>
+                      )}
 
-                    {libraryTab === 'downloads' && offlineTracks.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={handleClearAllOffline}
-                        className="text-xs text-red-400 hover:text-red-300 transition px-2 py-1 flex items-center gap-1 active:scale-95"
-                        title="Удалить все скачанные треки"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Очистить</span>
-                      </button>
-                    )}
+                      {libraryTab === 'downloads' && offlineTracks.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={handleClearAllOffline}
+                          className="text-xs text-red-400 hover:text-red-300 transition px-2.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 flex items-center gap-1.5 active:scale-95"
+                          title="Удалить все скачанные треки"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Очистить офлайн</span>
+                        </button>
+                      )}
 
-                    {libraryTab === 'queue' && queue.length > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setQueue([]);
-                          localStorage.removeItem(queueKey);
-                        }}
-                        className="text-xs text-red-400 hover:text-red-300 transition px-2 py-1 flex items-center gap-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>Очистить</span>
-                      </button>
-                    )}
+                      {libraryTab === 'queue' && queue.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setQueue([]);
+                            localStorage.removeItem(queueKey);
+                          }}
+                          className="text-xs text-red-400 hover:text-red-300 transition px-2.5 py-1.5 rounded-full bg-red-500/10 border border-red-500/20 flex items-center gap-1.5 active:scale-95"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Очистить очередь</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* 1. PLAYLISTS SECTION */}
@@ -1652,7 +1766,7 @@ export default function App() {
             <button
               type="button"
               onClick={() => {
-                setCurrentTab('library');
+                switchTab('library');
                 setLibraryTab('downloads');
               }}
               className="text-[11px] font-semibold bg-amber-400 text-black px-2.5 py-1 rounded-full hover:bg-amber-300 transition active:scale-95 flex-shrink-0"
@@ -1707,11 +1821,9 @@ export default function App() {
           isQueueOpen={isQueueOpen}
           onOpenAddToPlaylist={(t) => setTrackToAddToPlaylist(t)}
           isShuffle={isShuffle}
-          onToggleShuffle={() => setIsShuffle(!isShuffle)}
+          onToggleShuffle={handleToggleShuffle}
           repeatMode={repeatMode}
-          onToggleRepeat={() => {
-            setRepeatMode((prev) => (prev === 'off' ? 'all' : prev === 'all' ? 'one' : 'off'));
-          }}
+          onToggleRepeat={handleToggleRepeat}
           isExpanded={isPlayerExpanded}
           onExpandedChange={setIsPlayerExpanded}
         />
@@ -1720,7 +1832,7 @@ export default function App() {
         {!isPlayerExpanded && (
           <BottomNav
             currentTab={currentTab}
-            onTabChange={setCurrentTab}
+            onTabChange={switchTab}
             isVisible={!isPlayerExpanded}
           />
         )}
