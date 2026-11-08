@@ -166,6 +166,89 @@ async function resolveFullMp3Url(title: string, artist: string, query: string): 
   return null;
 }
 
+/**
+ * Searches SoundCloud for matching track when yt-dlp or direct URL is unavailable
+ */
+async function resolveSoundCloudSearch(title: string, artist: string, query: string): Promise<any | null> {
+  const cleanTitle = (title || '')
+    .replace(/[\(\[\{].*?[\)\]\}]/g, '')
+    .replace(/\b(official|audio|video|lyrics|hd|hq|remastered)\b/gi, '')
+    .trim()
+    .toLowerCase();
+  const cleanArtist = (artist || '').split(/[&,xX/]/)[0].trim().toLowerCase();
+  const searchTerms: string[] = [];
+  if (cleanArtist && cleanTitle) searchTerms.push(`${cleanArtist} ${cleanTitle}`);
+  if (query && !searchTerms.includes(query)) searchTerms.push(query);
+  if (!cleanArtist && cleanTitle && !searchTerms.includes(cleanTitle)) searchTerms.push(cleanTitle);
+
+  for (const term of searchTerms) {
+    try {
+      const results = await client.search(term, 'track');
+      if (!Array.isArray(results) || results.length === 0) continue;
+
+      const artistTokens = cleanArtist ? cleanArtist.split(/\s+/).filter((w) => w.length > 2) : [];
+      const titleTokens = cleanTitle ? cleanTitle.split(/\s+/).filter((w) => w.length > 2) : [];
+
+      for (const item of results) {
+        if (!item.url) continue;
+        const itemName = (item.name || '').toLowerCase();
+        const itemArtist = (item.artist || '').toLowerCase();
+
+        const matchTitle = titleTokens.length === 0 || titleTokens.some((t) => itemName.includes(t));
+        const matchArtist = artistTokens.length === 0 || artistTokens.some((t) => itemArtist.includes(t) || itemName.includes(t));
+
+        if (matchTitle && matchArtist) {
+          const songInfo = await client.getSongInfo(item.url).catch(() => null);
+          if (songInfo) return songInfo;
+        }
+      }
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+async function streamSoundCloud(songInfo: any, range: string | null): Promise<Response> {
+  try {
+    const streamOptions: any = {};
+    if (range) streamOptions.headers = { range };
+    const stream: any = await songInfo.downloadProgressive(streamOptions);
+    if (typeof stream?.on === 'function') {
+      stream.on('error', () => {});
+    }
+    const nodeStream = Readable.toWeb(stream) as ReadableStream;
+    const headers: Record<string, string> = {
+      'Content-Type': 'audio/mpeg',
+      'Accept-Ranges': 'bytes',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    };
+    if (stream.headers?.['content-range']) headers['Content-Range'] = stream.headers['content-range'];
+    if (stream.headers?.['content-length']) headers['Content-Length'] = stream.headers['content-length'];
+
+    return new Response(nodeStream, {
+      status: range && stream.headers?.['content-range'] ? 206 : 200,
+      headers,
+    });
+  } catch {
+    // If progressive fails, try HLS
+    const hlsStream = await songInfo.downloadHLS();
+    if (typeof hlsStream?.on === 'function') {
+      hlsStream.on('error', () => {});
+    }
+    const nodeStream = Readable.toWeb(hlsStream) as ReadableStream;
+    return new Response(nodeStream, {
+      headers: {
+        'Content-Type': 'audio/mpeg',
+        'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+      },
+    });
+  }
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const trackUrl = searchParams.get('url');
@@ -274,42 +357,23 @@ export async function GET(request: Request) {
       }
 
       if (songInfo) {
-        try {
-          const streamOptions: any = {};
-          if (range) streamOptions.headers = { range };
-          const stream: any = await songInfo.downloadProgressive(streamOptions);
-          if (typeof stream?.on === 'function') {
-            stream.on('error', () => {});
-          }
-          const nodeStream = Readable.toWeb(stream) as ReadableStream;
-          const headers: Record<string, string> = {
-            'Content-Type': 'audio/mpeg',
-            'Accept-Ranges': 'bytes',
-          };
-          if (stream.headers?.['content-range']) headers['Content-Range'] = stream.headers['content-range'];
-          if (stream.headers?.['content-length']) headers['Content-Length'] = stream.headers['content-length'];
-
-          return new Response(nodeStream, {
-            status: range && stream.headers?.['content-range'] ? 206 : 200,
-            headers,
-          });
-        } catch {
-          // If progressive fails, try HLS
-          const hlsStream = await songInfo.downloadHLS();
-          if (typeof hlsStream?.on === 'function') {
-            hlsStream.on('error', () => {});
-          }
-          const nodeStream = Readable.toWeb(hlsStream) as ReadableStream;
-          return new Response(nodeStream, {
-            headers: {
-              'Content-Type': 'audio/mpeg',
-              'Accept-Ranges': 'bytes',
-            },
-          });
-        }
+        return await streamSoundCloud(songInfo, range);
       }
     } catch (scErr) {
       console.warn('SoundCloud direct streaming error:', scErr);
+    }
+  }
+
+  // 3.5. SoundCloud Search Fallback (if yt-dlp was throttled/blocked or track has no URL)
+  if (artist || title || query) {
+    try {
+      const scSongInfo = await resolveSoundCloudSearch(title, artist, query);
+      if (scSongInfo) {
+        cache.set(cacheKey, { songInfo: scSongInfo, resolvedAt: Date.now() });
+        return await streamSoundCloud(scSongInfo, range);
+      }
+    } catch (e) {
+      console.warn('SoundCloud search fallback error:', e);
     }
   }
 
