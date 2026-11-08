@@ -765,8 +765,18 @@ export default function App() {
         <audio
           ref={audioRef}
           preload="auto"
+          crossOrigin="anonymous"
           onError={(e) => {
             console.warn('Audio element error event:', e);
+            if (currentTrack && audioRef.current) {
+              const fallbackUrl = `/api/stream?title=${encodeURIComponent(currentTrack.title)}&artist=${encodeURIComponent(currentTrack.artist)}`;
+              if (audioRef.current.src && !audioRef.current.src.includes('/api/stream?')) {
+                console.log('Falling back to universal stream:', fallbackUrl);
+                audioRef.current.src = fallbackUrl;
+                audioRef.current.play().catch(() => setIsPlaying(false));
+                return;
+              }
+            }
             setIsPlaying(false);
           }}
         />

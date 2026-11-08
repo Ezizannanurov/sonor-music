@@ -42,3 +42,5 @@ next-env.d.ts
 /android
 deploy_mobile.py
 
+
+*.apk

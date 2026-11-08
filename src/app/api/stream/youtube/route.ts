@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { execFile } from 'child_process';
 import { promisify } from 'util';
-import { Readable } from 'stream';
 import axios from 'axios';
+import { resolveFullMp3Url, streamAudioResponse, SILENT_MP3 } from '@/lib/mp3Resolver';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -77,58 +77,57 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'videoId is required' }, { status: 400 });
   }
 
-  const title = searchParams.get('title') || '';
-  const artist = searchParams.get('artist') || '';
+  let title = searchParams.get('title') || '';
+  let artist = searchParams.get('artist') || '';
   const range = request.headers.get('range');
 
+  // 1. First attempt: resolve via yt-dlp / Invidious
   try {
     const directAudioUrl = await resolveDirectAudioUrl(videoId);
-
     if (directAudioUrl) {
-      try {
-        const axiosRes = await axios.get(directAudioUrl, {
-          responseType: 'stream',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            ...(range ? { range } : {}),
-          },
-          timeout: 15000,
-        });
-
-        if (typeof axiosRes?.data?.on === 'function') {
-          axiosRes.data.on('error', () => {});
-        }
-
-        const nodeStream = Readable.toWeb(axiosRes.data) as ReadableStream;
-        const headers: Record<string, string> = {
-          'Content-Type': String(axiosRes.headers['content-type'] || 'audio/webm'),
-          'Accept-Ranges': 'bytes',
-        };
-        if (axiosRes.headers['content-range']) headers['Content-Range'] = String(axiosRes.headers['content-range']);
-        if (axiosRes.headers['content-length']) headers['Content-Length'] = String(axiosRes.headers['content-length']);
-
-        return new Response(nodeStream, {
-          status: range && axiosRes.headers['content-range'] ? 206 : 200,
-          headers,
-        });
-      } catch (streamErr) {
-        console.warn('Direct stream proxy error, falling back to redirect:', streamErr);
-        return NextResponse.redirect(directAudioUrl);
-      }
+      return await streamAudioResponse(directAudioUrl, range);
     }
   } catch (err) {
-    console.error('YouTube stream resolver error:', err);
+    console.warn('Direct stream resolver error:', err);
   }
 
-  // 3. Ultimate Fallback: Redirect to universal MP3 / SoundCloud resolver by title & artist
+  // 2. If title or artist are missing, fetch them via YouTube oEmbed (fast & never blocked)
+  if (!title && !artist) {
+    try {
+      const oembedRes = await axios.get(
+        `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`,
+        { timeout: 3500 }
+      );
+      if (oembedRes.data) {
+        title = oembedRes.data.title || '';
+        artist = oembedRes.data.author_name || '';
+      }
+    } catch (e) {
+      console.warn('oEmbed fetch error for videoId', videoId, e);
+    }
+  }
+
+  // 3. Fallback: Resolve full studio MP3 directly by title and artist
   if (title || artist) {
-    return NextResponse.redirect(
-      new URL(
-        `/api/stream?title=${encodeURIComponent(title)}&artist=${encodeURIComponent(artist)}&q=${encodeURIComponent(`${artist} ${title}`.trim())}`,
-        request.url
-      )
-    );
+    const searchQuery = `${artist} ${title}`.trim();
+    try {
+      const mp3Url = await resolveFullMp3Url(title, artist, searchQuery);
+      if (mp3Url) {
+        return await streamAudioResponse(mp3Url, range);
+      }
+    } catch (mp3Err) {
+      console.warn('MP3 catalog fallback error:', mp3Err);
+    }
   }
 
-  return NextResponse.json({ error: 'Could not resolve audio stream' }, { status: 500 });
+  // 4. Ultimate fallback: 1-second silent MP3 so audio player doesn't crash or throw 500
+  return new Response(SILENT_MP3, {
+    status: 200,
+    headers: {
+      'Content-Type': 'audio/mpeg',
+      'Accept-Ranges': 'bytes',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+    },
+  });
 }

@@ -179,6 +179,8 @@ export async function GET(request: Request) {
       const headers: Record<string, string> = {
         'Content-Type': String(axiosRes.headers['content-type'] || 'audio/mpeg'),
         'Accept-Ranges': 'bytes',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
       };
       if (axiosRes.headers['content-range']) headers['Content-Range'] = String(axiosRes.headers['content-range']);
       if (axiosRes.headers['content-length']) headers['Content-Length'] = String(axiosRes.headers['content-length']);
@@ -188,9 +190,18 @@ export async function GET(request: Request) {
         headers,
       });
     } catch {
-      // If direct proxy fails, fallback to redirect
-      const absUrl = audioUrl.startsWith('http') ? audioUrl : new URL(audioUrl, request.url).toString();
-      return NextResponse.redirect(absUrl);
+      // If direct proxy fails, redirect only if it is a trusted external https URL
+      if (audioUrl.startsWith('https://') && !audioUrl.includes('0.0.0.0') && !audioUrl.includes('localhost')) {
+        return NextResponse.redirect(audioUrl);
+      }
+      return new Response(SILENT_MP3, {
+        status: 200,
+        headers: {
+          'Content-Type': 'audio/mpeg',
+          'Accept-Ranges': 'bytes',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
   };
 

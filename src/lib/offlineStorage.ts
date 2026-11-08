@@ -133,18 +133,29 @@ export async function saveTrackOffline(
 ): Promise<void> {
   if (typeof window === 'undefined') return;
 
-  const streamUrl =
-    track.streamUrl ||
-    `/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`;
+  const fallbackStreamUrl = `/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`;
+  let streamUrl = track.streamUrl || fallbackStreamUrl;
+
+  if (streamUrl.includes('apple.com') || track.source === 'spotify') {
+    streamUrl = fallbackStreamUrl;
+  }
 
   // 1. Fetch audio stream as Blob
   onProgress?.(15);
-  const audioRes = await fetch(streamUrl);
-  if (!audioRes.ok) {
-    throw new Error(`Не удалось загрузить аудио: HTTP ${audioRes.status}`);
+  let audioRes = await fetch(streamUrl).catch(() => null);
+
+  // If primary stream URL fails or returns non-200, retry with universal resolver
+  if ((!audioRes || !audioRes.ok) && streamUrl !== fallbackStreamUrl) {
+    onProgress?.(25);
+    streamUrl = fallbackStreamUrl;
+    audioRes = await fetch(streamUrl).catch(() => null);
   }
 
-  onProgress?.(45);
+  if (!audioRes || !audioRes.ok) {
+    throw new Error(`Не удалось загрузить аудио: HTTP ${audioRes?.status || 'network error'}`);
+  }
+
+  onProgress?.(55);
   const audioBlob = await audioRes.blob();
   onProgress?.(75);
 
