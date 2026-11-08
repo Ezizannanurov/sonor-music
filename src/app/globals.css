@@ -1,0 +1,138 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+:root {
+  --background: #000000;
+  --foreground: #f4f4f5;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  --accent-color: #6366f1;
+  --accent-glow: rgba(99, 102, 241, 0.45);
+  --accent-subtle: rgba(99, 102, 241, 0.12);
+}
+
+body {
+  background-color: #000000;
+  color: #f4f4f5;
+  font-family: var(--font-sans);
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ShinyText Animation */
+@keyframes shine {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
+
+.animate-shine {
+  animation: shine 4s linear infinite;
+}
+
+/* Modal Fade Animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Explicit Tab Transition Animation */
+@keyframes tabEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0px);
+  }
+}
+
+.tab-content-active {
+  animation: tabEnter 0.28s ease-out forwards;
+  will-change: transform, opacity;
+}
+
+/* Liquid Glass Effect Classes */
+.liquid-glass {
+  background: rgba(18, 18, 22, 0.65);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 
+    0 10px 30px 0 rgba(0, 0, 0, 0.45),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.15),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.25);
+}
+
+.liquid-glass-nav {
+  background: rgba(10, 10, 14, 0.72);
+  backdrop-filter: blur(32px) saturate(200%);
+  -webkit-backdrop-filter: blur(32px) saturate(200%);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    0 -10px 40px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+/* Mobile touch enhancements */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Minimal clean slider */
+input[type="range"] {
+  -webkit-appearance: none;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+  border-radius: 9999px;
+  touch-action: pan-y;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  cursor: pointer;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  transition: transform 0.1s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+}
+
+@media (max-width: 640px) {
+  input[type="range"]::-webkit-slider-thumb {
+    width: 18px;
+    height: 18px;
+  }
+}
