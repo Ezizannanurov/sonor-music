@@ -418,10 +418,10 @@ export default function App() {
             id: state.currentTrack.id,
             title: state.currentTrack.title,
             artist: state.currentTrack.artist,
-            thumbnail: state.currentTrack.artwork || '',
+            thumbnail: state.currentTrack.artwork || state.currentTrack.coverUrl || '',
             streamUrl: state.currentTrack.url,
             duration: state.duration || 0,
-            source: 'youtube',
+            source: (state.currentTrack.source as any) || 'spotify',
           });
           setIsPlaying(Boolean(state.isPlaying));
           if (state.currentTime) setCurrentTime(state.currentTime);
@@ -442,15 +442,15 @@ export default function App() {
       if (data.duration !== undefined) setDuration(data.duration);
     });
 
-    const subTrack = MediaPlayback.addListener('trackChange', (data) => {
+    const subTrack = MediaPlayback.addListener('trackChange', (data: any) => {
       setCurrentTrack({
         id: data.id,
         title: data.title,
         artist: data.artist,
-        thumbnail: data.artwork || '',
-        streamUrl: '',
+        thumbnail: data.artwork || data.coverUrl || '',
+        streamUrl: data.url || '',
         duration: data.duration || 0,
-        source: 'youtube',
+        source: (data.source as any) || 'spotify',
       });
       setIsPlaying(true);
       if (data.duration) setDuration(data.duration);
@@ -739,25 +739,43 @@ export default function App() {
           : currentTab === 'search'
           ? searchTracks
           : homeTracks;
-      const currIdx = activeList.findIndex((t) => t.id === track.id);
+
+      let queueToUse = activeList;
+      let currIdx = queueToUse.findIndex((t) => t.id === track.id);
+      if (currIdx === -1) {
+        queueToUse = [track, ...queueToUse.filter((t) => t.id !== track.id)];
+        currIdx = 0;
+      }
+
+      const fullArtwork = track.thumbnail?.startsWith('http')
+        ? track.thumbnail
+        : track.thumbnail?.startsWith('/')
+        ? `${backendBase}${track.thumbnail}`
+        : track.thumbnail || '';
 
       MediaPlayback.play({
         id: track.id,
         title: track.title,
         artist: track.artist,
-        artwork: track.thumbnail || '',
+        artwork: fullArtwork,
         url: fullPlayUrl,
         duration: track.duration || 0,
-        index: currIdx >= 0 ? currIdx : 0,
-        queue: activeList.map((t) => ({
+        source: track.source || 'spotify',
+        index: currIdx,
+        queue: queueToUse.map((t) => ({
           id: t.id,
           title: t.title,
           artist: t.artist,
-          artwork: t.thumbnail,
+          artwork: t.thumbnail?.startsWith('http')
+            ? t.thumbnail
+            : t.thumbnail?.startsWith('/')
+            ? `${backendBase}${t.thumbnail}`
+            : t.thumbnail || '',
           url: t.streamUrl?.startsWith('http')
             ? t.streamUrl
             : `${backendBase}/api/stream?title=${encodeURIComponent(t.title)}&artist=${encodeURIComponent(t.artist)}`,
           duration: t.duration,
+          source: t.source || 'spotify',
         })),
       }).catch(console.warn);
 

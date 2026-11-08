@@ -26,14 +26,17 @@ export async function resolveFullMp3Url(
   const cleanArtist = (artist || '').split(/[&,xX/]/)[0].trim();
 
   const searchTerms: string[] = [];
-  if (cleanTitle && cleanArtist) {
+  // 1. Full artist + title is the most accurate query
+  if (cleanArtist && cleanTitle) {
     searchTerms.push(`${cleanArtist} ${cleanTitle}`);
   }
-  if (cleanTitle) {
-    searchTerms.push(cleanTitle);
-  }
+  // 2. Query as provided
   if (query && !searchTerms.includes(query)) {
     searchTerms.push(query);
+  }
+  // 3. Fallback to cleanTitle only if no cleanArtist was provided
+  if (!cleanArtist && cleanTitle && !searchTerms.includes(cleanTitle)) {
+    searchTerms.push(cleanTitle);
   }
 
   for (const term of searchTerms) {
@@ -42,7 +45,7 @@ export async function resolveFullMp3Url(
       const res = await axios.get(url, {
         headers: {
           'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
           Accept:
             'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8',
@@ -74,23 +77,35 @@ export async function resolveFullMp3Url(
       const targetTitle = (cleanTitle || title || '').toLowerCase().trim();
       const targetArtist = (cleanArtist || artist || '').toLowerCase().trim();
 
+      // Priority 1: Exact / substring match of both title and artist
       if (targetTitle && targetArtist) {
         const best = candidates.find(
           (c) =>
-            c.title.includes(targetTitle) &&
+            (c.title.includes(targetTitle) || targetTitle.includes(c.title)) &&
             (c.artist.includes(targetArtist) || targetArtist.includes(c.artist))
         );
         if (best) return best.audioUrl;
+
+        // Priority 2: Token match (at least one significant word matches in both artist and title)
+        const artistTokens = targetArtist.split(/\s+/).filter((w) => w.length > 2);
+        const titleTokens = targetTitle.split(/\s+/).filter((w) => w.length > 2);
+        const tokenMatch = candidates.find((c) => {
+          const hasArtist = artistTokens.length === 0 || artistTokens.some((t) => c.artist.includes(t));
+          const hasTitle = titleTokens.length === 0 || titleTokens.some((t) => c.title.includes(t));
+          return hasArtist && hasTitle;
+        });
+        if (tokenMatch) return tokenMatch.audioUrl;
       }
 
-      if (targetTitle) {
+      // Priority 3: If no artist was specified, match title
+      if (!targetArtist && targetTitle) {
         const titleMatch = candidates.find(
           (c) => c.title.includes(targetTitle) || targetTitle.includes(c.title)
         );
         if (titleMatch) return titleMatch.audioUrl;
       }
 
-      return candidates[0].audioUrl;
+      // Do NOT return random candidates[0] if artist and title do not match!
     } catch {
       continue;
     }

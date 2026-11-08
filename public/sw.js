@@ -1,5 +1,5 @@
 // Sonor Music Service Worker - Network-First with Offline Fallback
-const CACHE_NAME = 'sonor-music-v6';
+const CACHE_NAME = 'sonor-music-v7';
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();

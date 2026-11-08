@@ -5,8 +5,10 @@ export interface NativeTrack {
   title: string;
   artist: string;
   artwork?: string;
+  coverUrl?: string;
   url: string;
   duration?: number;
+  source?: string;
 }
 
 export interface MediaPlaybackPlugin {
@@ -17,6 +19,7 @@ export interface MediaPlaybackPlugin {
     artwork?: string;
     url: string;
     duration?: number;
+    source?: string;
     index?: number;
     queue?: NativeTrack[];
   }): Promise<{ success: boolean }>;
@@ -48,7 +51,7 @@ export interface MediaPlaybackPlugin {
   ): Promise<any>;
   addListener(
     eventName: 'trackChange',
-    listener: (data: { id: string; title: string; artist: string; artwork?: string; duration: number; index: number }) => void
+    listener: (data: { id: string; title: string; artist: string; artwork?: string; coverUrl?: string; url?: string; duration: number; source?: string; index: number }) => void
   ): Promise<any>;
   addListener(
     eventName: 'timeUpdate',
