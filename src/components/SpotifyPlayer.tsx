@@ -144,58 +144,14 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
               )}
             </div>
 
-            <div className="truncate min-w-0 pr-1">
+            <div className="truncate min-w-0 flex-1 pr-2">
               <div className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5">
-                <span>{currentTrack.title}</span>
+                <span className="truncate">{currentTrack.title}</span>
                 <ServiceLogo source={currentTrack.source} className="w-3 h-3 flex-shrink-0 opacity-70" />
               </div>
               <div className="text-[11px] text-zinc-400 truncate mt-0.5 font-medium">
                 {currentTrack.artist}
               </div>
-            </div>
-
-            {onToggleOffline && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleOffline(currentTrack);
-                }}
-                className={`p-1.5 flex-shrink-0 transition rounded-full hover:bg-white/10 active:scale-90 ${
-                  isOffline ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'
-                }`}
-                title={
-                  isDownloading
-                    ? 'Скачивание...'
-                    : isOffline
-                    ? 'Сохранено офлайн (нажмите для удаления)'
-                    : 'Скачать на телефон'
-                }
-              >
-                {isDownloading ? (
-                  <Loader2 className="w-4 h-4 animate-spin text-zinc-300" />
-                ) : isOffline ? (
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                ) : (
-                  <ArrowDownToLine className="w-4 h-4" />
-                )}
-              </button>
-            )}
-
-            <div
-              className="flex-shrink-0 flex items-center justify-center"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <PulseHeart
-                liked={isLiked}
-                showCount={false}
-                size={18}
-                corner={20}
-                pillColor="transparent"
-                idleColor="#71717a"
-                likedColor="#ff4d6d"
-                onChange={() => onToggleLike(currentTrack)}
-              />
             </div>
           </div>
 
