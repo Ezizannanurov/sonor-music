@@ -1,13 +1,17 @@
-const config = {
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
   appId: 'fm.sonor.music',
   appName: 'Sonor Music',
   webDir: 'public',
   server: {
-    url: 'http://153.80.178.242',
+    url: 'https://sonor-music.onrender.com',
     cleartext: true,
+    androidScheme: 'https',
   },
   android: {
     allowMixedContent: true,
+    backgroundColor: '#000000',
   },
 };
 

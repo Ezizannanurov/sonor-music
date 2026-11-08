@@ -13,6 +13,10 @@ interface BottomNavProps {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, onTabChange, isVisible = true }) => {
+  if (!isVisible) {
+    return null;
+  }
+
   const tabs: { value: NavTab; label: string; icon: React.ReactNode }[] = [
     {
       value: 'home',

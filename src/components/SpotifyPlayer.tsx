@@ -229,7 +229,7 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
 
       {/* 2. SPOTIFY EXPANDED FULL-SCREEN PLAYER OVERLAY */}
       {isExpanded && (
-        <div className="fixed inset-0 z-[70] bg-zinc-950/98 backdrop-blur-3xl flex flex-col justify-between p-4 sm:p-8 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] animate-fadeIn overflow-y-auto">
+        <div className="fixed inset-0 z-[100] bg-zinc-950/98 backdrop-blur-3xl flex flex-col justify-between p-4 sm:p-8 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] animate-fadeIn overflow-y-auto">
           {/* Mobile Top Dismiss Handle */}
           <div
             className="w-10 h-1 bg-white/25 rounded-full mx-auto mb-1 sm:hidden cursor-pointer"

@@ -145,7 +145,7 @@ export default function App() {
             artist: 'Beanie Bopper & Atsuover',
             source: 'spotify',
             duration: 113,
-            thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e9/bc/3b/e9bc3bec-42b8-9e43-76e5-8fc107b3bcd3/artwork.jpg/300x300bb.jpg',
+            thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music116/v4/e9/bc/3b/e9bc3bec-42b8-9e43-76e5-8fc107b3bcd3/artwork.jpg/600x600bb.jpg',
             streamUrl: '/api/stream/youtube?id=2rOi1fy954E&title=Friday%20night%20funkin%20Hazy%20river%20OST%20-%20Nerves&artist=Atsuover',
           },
           {
@@ -154,7 +154,7 @@ export default function App() {
             artist: 'DVRST',
             source: 'spotify',
             duration: 132,
-            thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/a4/09/b3/a409b30c-7b00-3023-3dbd-0275be6506f3/196292358872.jpg/600x600bb.jpg',
+            thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/f2/c9/7f/f2c97f51-f479-6036-ada1-f23bd60b160e/0.jpg/600x600bb.jpg',
             streamUrl: '/api/stream/youtube?id=1-xGerv5FOk&title=DVRST%20-%20Close%20Eyes&artist=DVRST',
           },
           {
@@ -163,17 +163,17 @@ export default function App() {
             artist: 'Kordhell',
             source: 'spotify',
             duration: 145,
-            thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music112/v4/4a/1d/a5/4a1da51d-b7fc-c99e-3168-9844e138a05c/196626922986.jpg/600x600bb.jpg',
+            thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music211/v4/7a/de/1c/7ade1c79-db22-f0f1-6962-c390fa2c80f7/199999370628.png/600x600bb.jpg',
             streamUrl: '/api/stream/youtube?id=w-sQRS-Um98&title=Kordhell%20-%20Murder%20In%20My%20Mind&artist=Kordhell',
           },
           {
             id: 'rec-4',
-            title: 'Blinding Lights',
+            title: 'After Hours',
             artist: 'The Weeknd',
             source: 'spotify',
-            duration: 200,
-            thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music115/v4/44/d1/2b/44d12b07-0639-65b3-3466-96a8be2c75a7/20UMGIM08600.rgb.jpg/600x600bb.jpg',
-            streamUrl: '/api/stream/youtube?id=4NRXx6U8ABQ&title=The%20Weeknd%20-%20Blinding%20Lights&artist=The%20Weeknd',
+            duration: 361,
+            thumbnail: 'https://is1-ssl.mzstatic.com/image/thumb/Music125/v4/6f/bc/e6/6fbce6c4-c38c-72d8-4fd0-66cfff32f679/20UMGIM12176.rgb.jpg/600x600bb.jpg',
+            streamUrl: '/api/stream/youtube?id=ygTZZpVHNfc&title=The%20Weeknd%20-%20After%20Hours&artist=The%20Weeknd',
           },
         ];
         setRecentTracks(defaultRecent);
@@ -1326,12 +1326,14 @@ export default function App() {
           onExpandedChange={setIsPlayerExpanded}
         />
 
-        {/* Floating Glass Pill Navigation Bar with JellyRadio (hidden when player is fullscreen) */}
-        <BottomNav
-          currentTab={currentTab}
-          onTabChange={setCurrentTab}
-          isVisible={!isPlayerExpanded}
-        />
+        {/* Floating Glass Pill Navigation Bar (completely hidden when player is fullscreen) */}
+        {!isPlayerExpanded && (
+          <BottomNav
+            currentTab={currentTab}
+            onTabChange={setCurrentTab}
+            isVisible={!isPlayerExpanded}
+          />
+        )}
 
         {/* Theme Customization Modal */}
         <ThemeModal
