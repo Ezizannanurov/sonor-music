@@ -5,7 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Sonor Music',
   webDir: 'public',
   server: {
-    url: 'https://sonor-music.onrender.com',
+    url: 'https://sonor-music-ubvp.onrender.com',
     cleartext: true,
     androidScheme: 'https',
   },
