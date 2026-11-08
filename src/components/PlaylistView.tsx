@@ -19,6 +19,9 @@ interface PlaylistViewProps {
   onToggleFavorite: (track: Track) => void;
   onAddToQueue: (track: Track) => void;
   onAddToPlaylist: (track: Track) => void;
+  offlineTrackIds?: Set<string>;
+  downloadingTrackIds?: Set<string>;
+  onToggleOffline?: (track: Track) => void;
 }
 
 export const PlaylistView: React.FC<PlaylistViewProps> = ({
@@ -34,6 +37,9 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({
   onToggleFavorite,
   onAddToQueue,
   onAddToPlaylist,
+  offlineTrackIds,
+  downloadingTrackIds,
+  onToggleOffline,
 }) => {
   const totalDuration = playlist.tracks.reduce((acc, t) => acc + (t.duration || 0), 0);
   const totalMinutes = Math.floor(totalDuration / 60);
@@ -154,8 +160,11 @@ export const PlaylistView: React.FC<PlaylistViewProps> = ({
                 isPlaying={isPlaying}
                 isCurrent={currentTrack?.id === track.id}
                 isLiked={favorites.some((f) => f.id === track.id)}
+                isOffline={offlineTrackIds?.has(track.id)}
+                isDownloading={downloadingTrackIds?.has(track.id)}
                 onPlay={onPlayTrack}
                 onToggleLike={onToggleFavorite}
+                onToggleOffline={onToggleOffline}
                 onAddToQueue={onAddToQueue}
                 onAddToPlaylist={onAddToPlaylist}
               />

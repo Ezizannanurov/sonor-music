@@ -2,7 +2,8 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { 
-  Search, Loader2, ListMusic, Trash2, X, Activity, Palette, Plus, Music, Play, Smartphone, Sparkles
+  Search, Loader2, ListMusic, Trash2, X, Activity, Palette, Plus, Music, Play, Smartphone, Sparkles,
+  ArrowDownToLine, CheckCircle2, HardDriveDownload, WifiOff
 } from 'lucide-react';
 import { Track } from '@/types/track';
 import { TrackCard } from '@/components/TrackCard';
@@ -27,6 +28,14 @@ import { HomeMoodGrid, MoodCategory } from '@/components/HomeMoodGrid';
 import { HomePopularArtists, PopularArtist, PopularAlbum } from '@/components/HomePopularArtists';
 import { useAuth } from '@/context/AuthContext';
 import { usePlaylist } from '@/context/PlaylistContext';
+import { 
+  getAllOfflineTracks, 
+  saveTrackOffline, 
+  deleteOfflineTrack, 
+  clearAllOfflineTracks, 
+  getOfflineAudioUrl, 
+  exportTrackFile 
+} from '@/lib/offlineStorage';
 
 const GENRES = ['Phonk', 'Synthwave', 'Hip-Hop', 'Nightcore', 'Lo-Fi', 'Rock'];
 
@@ -60,7 +69,12 @@ export default function App() {
   const [queue, setQueue] = useState<Track[]>([]);
   const [favorites, setFavorites] = useState<Track[]>([]);
   
-  const [libraryTab, setLibraryTab] = useState<'playlists' | 'favorites' | 'queue'>('playlists');
+  // Offline & Library state
+  const [offlineTracks, setOfflineTracks] = useState<Track[]>([]);
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [offlineAlert, setOfflineAlert] = useState<string | null>(null);
+  const [libraryTab, setLibraryTab] = useState<'playlists' | 'favorites' | 'downloads' | 'queue'>('playlists');
   const [isLoading, setIsLoading] = useState(false);
   const [isQueueOpen, setIsQueueOpen] = useState(false);
 
@@ -180,6 +194,25 @@ export default function App() {
       }
     } catch {
       // ignore
+    }
+
+    // Load offline tracks from IndexedDB
+    getAllOfflineTracks().then((cached) => {
+      setOfflineTracks(cached);
+    }).catch(console.error);
+
+    // Network connectivity tracking
+    if (typeof window !== 'undefined') {
+      setIsOnline(navigator.onLine);
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      };
     }
 
     loadHomeContent();
@@ -455,7 +488,7 @@ export default function App() {
     }
   };
 
-  const handlePlayTrack = (track: Track) => {
+  const handlePlayTrack = async (track: Track) => {
     if (currentTrack?.id === track.id) {
       if (isPlaying) {
         audioRef.current?.pause();
@@ -480,19 +513,89 @@ export default function App() {
       return updated;
     });
 
-    if (audioRef.current) {
-      let playUrl = track.streamUrl || '';
-      if (!playUrl.startsWith('/api/stream')) {
+    let playUrl = '';
+    try {
+      const offlineUrl = await getOfflineAudioUrl(track.id);
+      if (offlineUrl) {
+        playUrl = offlineUrl;
+      }
+    } catch {}
+
+    if (!playUrl) {
+      if (typeof navigator !== 'undefined' && !navigator.onLine) {
+        setOfflineAlert('Этот трек ещё не скачан для офлайн-прослушивания. Подключитесь к интернету или выберите трек из вкладки «Офлайн».');
+        setTimeout(() => setOfflineAlert(null), 5000);
+        setIsPlaying(false);
+        return;
+      }
+
+      playUrl = track.streamUrl || '';
+      if (!playUrl.startsWith('/api/stream') && !playUrl.startsWith('blob:')) {
         if (!playUrl || playUrl.includes('apple.com') || track.source === 'spotify') {
           playUrl = `/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&preview=${encodeURIComponent(track.streamUrl || '')}`;
         }
       }
+    }
+
+    if (audioRef.current) {
       audioRef.current.src = playUrl;
       audioRef.current.playbackRate = speed;
       audioRef.current.play().catch((err) => {
         console.warn('Playback error:', err);
         setIsPlaying(false);
       });
+    }
+  };
+
+  const handleToggleOffline = async (track: Track) => {
+    const isDownloaded = offlineTracks.some((t) => t.id === track.id);
+    if (isDownloaded) {
+      await deleteOfflineTrack(track.id);
+      setOfflineTracks((prev) => prev.filter((t) => t.id !== track.id));
+      setOfflineAlert(`Трек «${track.title}» удалён из офлайн-памяти.`);
+      setTimeout(() => setOfflineAlert(null), 3000);
+    } else {
+      setDownloadingIds((prev) => new Set(prev).add(track.id));
+      setOfflineAlert(`Скачивание «${track.title}» в память телефона...`);
+      try {
+        await saveTrackOffline(track);
+        const updated = await getAllOfflineTracks();
+        setOfflineTracks(updated);
+        setOfflineAlert(`✓ Трек «${track.title}» сохранён! Теперь он доступен без интернета.`);
+        setTimeout(() => setOfflineAlert(null), 4000);
+      } catch (err: any) {
+        console.error('Download error:', err);
+        setOfflineAlert(`Ошибка сохранения: ${err?.message || 'проверьте подключение'}`);
+        setTimeout(() => setOfflineAlert(null), 4000);
+      } finally {
+        setDownloadingIds((prev) => {
+          const next = new Set(prev);
+          next.delete(track.id);
+          return next;
+        });
+      }
+    }
+  };
+
+  const handleExportFile = async (track: Track) => {
+    try {
+      setOfflineAlert(`Сохранение MP3 «${track.title}» на устройство...`);
+      await exportTrackFile(track);
+      setOfflineAlert(`✓ Файл «${track.artist} - ${track.title}.mp3» сохранён в загрузки!`);
+      setTimeout(() => setOfflineAlert(null), 3000);
+    } catch (err: any) {
+      console.error('Export file error:', err);
+      setOfflineAlert(`Не удалось сохранить файл: ${err?.message || 'ошибка'}`);
+      setTimeout(() => setOfflineAlert(null), 4000);
+    }
+  };
+
+  const handleClearAllOffline = async () => {
+    if (confirm('Удалить все скачанные треки из памяти телефона?')) {
+      await clearAllOfflineTracks();
+      setOfflineTracks([]);
+      setOfflineAlert('Офлайн-хранилище очищено.');
+      setTimeout(() => setOfflineAlert(null), 3000);
     }
   };
 
@@ -882,8 +985,11 @@ export default function App() {
                         isPlaying={isPlaying}
                         isCurrent={currentTrack?.id === track.id}
                         isLiked={favorites.some((f) => f.id === track.id)}
+                        isOffline={offlineTracks.some((t) => t.id === track.id)}
+                        isDownloading={downloadingIds.has(track.id)}
                         onPlay={handlePlayTrack}
                         onToggleLike={toggleFavorite}
+                        onToggleOffline={handleToggleOffline}
                         onAddToQueue={addToQueue}
                         onAddToPlaylist={(t) => setTrackToAddToPlaylist(t)}
                       />
@@ -1007,8 +1113,11 @@ export default function App() {
                       isPlaying={isPlaying}
                       isCurrent={currentTrack?.id === track.id}
                       isLiked={favorites.some((f) => f.id === track.id)}
+                      isOffline={offlineTracks.some((t) => t.id === track.id)}
+                      isDownloading={downloadingIds.has(track.id)}
                       onPlay={handlePlayTrack}
                       onToggleLike={toggleFavorite}
+                      onToggleOffline={handleToggleOffline}
                       onAddToQueue={addToQueue}
                       onAddToPlaylist={(t) => setTrackToAddToPlaylist(t)}
                     />
@@ -1036,19 +1145,23 @@ export default function App() {
                   onToggleFavorite={toggleFavorite}
                   onAddToQueue={addToQueue}
                   onAddToPlaylist={(t) => setTrackToAddToPlaylist(t)}
+                  offlineTrackIds={new Set(offlineTracks.map((t) => t.id))}
+                  downloadingTrackIds={downloadingIds}
+                  onToggleOffline={handleToggleOffline}
                 />
               ) : (
                 <>
-                  {/* Library Navigation: Playlists, Favorites, Queue */}
+                  {/* Library Navigation: Playlists, Favorites, Downloads, Queue */}
                   <div className="flex items-center justify-between pb-2 border-b border-white/5">
                     <JellyRadio
                       items={[
                         { value: 'playlists', label: `Плейлисты (${playlists.length})` },
                         { value: 'favorites', label: `Любимые (${favorites.length})` },
+                        { value: 'downloads', label: `Офлайн (${offlineTracks.length})` },
                         { value: 'queue', label: `Очередь (${queue.length})` }
                       ]}
                       value={libraryTab}
-                      onChange={(val) => setLibraryTab(val as 'playlists' | 'favorites' | 'queue')}
+                      onChange={(val) => setLibraryTab(val as 'playlists' | 'favorites' | 'downloads' | 'queue')}
                       chipColor="#18181b"
                       activeColor="#ffffff"
                       textColor="#a1a1aa"
@@ -1073,6 +1186,18 @@ export default function App() {
                       >
                         <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                         <span>Создать</span>
+                      </button>
+                    )}
+
+                    {libraryTab === 'downloads' && offlineTracks.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearAllOffline}
+                        className="text-xs text-red-400 hover:text-red-300 transition px-2 py-1 flex items-center gap-1 active:scale-95"
+                        title="Удалить все скачанные треки"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Очистить</span>
                       </button>
                     )}
 
@@ -1168,8 +1293,11 @@ export default function App() {
                             isPlaying={isPlaying}
                             isCurrent={currentTrack?.id === track.id}
                             isLiked={true}
+                            isOffline={offlineTracks.some((t) => t.id === track.id)}
+                            isDownloading={downloadingIds.has(track.id)}
                             onPlay={handlePlayTrack}
                             onToggleLike={toggleFavorite}
+                            onToggleOffline={handleToggleOffline}
                             onAddToQueue={addToQueue}
                             onAddToPlaylist={(t) => setTrackToAddToPlaylist(t)}
                           />
@@ -1178,7 +1306,62 @@ export default function App() {
                     )
                   )}
 
-                  {/* 3. QUEUE SECTION */}
+                  {/* 3. DOWNLOADS / OFFLINE SECTION */}
+                  {libraryTab === 'downloads' && (
+                    offlineTracks.length === 0 ? (
+                      <div className="text-center py-20 px-4 space-y-3">
+                        <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-white/10 mx-auto flex items-center justify-center text-zinc-500 shadow-inner">
+                          <HardDriveDownload className="w-7 h-7" />
+                        </div>
+                        <h3 className="text-base font-semibold text-white">Офлайн-хранилище пусто</h3>
+                        <p className="text-xs text-zinc-400 max-w-sm mx-auto leading-relaxed">
+                          Нажмите на иконку скачивания рядом с любым треком или в плеере, чтобы сохранить его на телефон для прослушивания без интернета.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between px-1">
+                          <div className="text-xs text-zinc-400">
+                            Доступно без интернета: <span className="text-white font-medium">{offlineTracks.length} треков</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (offlineTracks.length > 0) {
+                                handlePlayTrack(offlineTracks[0]);
+                                setQueue(offlineTracks.slice(1));
+                              }
+                            }}
+                            className="text-xs font-semibold text-black bg-white hover:bg-zinc-200 px-3 py-1.5 rounded-full flex items-center gap-1.5 transition active:scale-95 shadow-md"
+                          >
+                            <Play className="w-3.5 h-3.5 fill-black" />
+                            <span>Включить всё</span>
+                          </button>
+                        </div>
+                        <div className="space-y-1">
+                          {offlineTracks.map((track, idx) => (
+                            <TrackCard
+                              key={`offline-${track.id}-${idx}`}
+                              track={track}
+                              index={idx}
+                              isPlaying={isPlaying}
+                              isCurrent={currentTrack?.id === track.id}
+                              isLiked={favorites.some((f) => f.id === track.id)}
+                              isOffline={true}
+                              isDownloading={downloadingIds.has(track.id)}
+                              onPlay={handlePlayTrack}
+                              onToggleLike={toggleFavorite}
+                              onToggleOffline={handleToggleOffline}
+                              onAddToQueue={addToQueue}
+                              onAddToPlaylist={(t) => setTrackToAddToPlaylist(t)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  )}
+
+                  {/* 4. QUEUE SECTION */}
                   {libraryTab === 'queue' && (
                     queue.length === 0 ? (
                       <div className="text-center py-24 text-zinc-500 text-sm">
@@ -1194,8 +1377,11 @@ export default function App() {
                             isPlaying={isPlaying}
                             isCurrent={currentTrack?.id === track.id}
                             isLiked={favorites.some((f) => f.id === track.id)}
+                            isOffline={offlineTracks.some((t) => t.id === track.id)}
+                            isDownloading={downloadingIds.has(track.id)}
                             onPlay={handlePlayTrack}
                             onToggleLike={toggleFavorite}
+                            onToggleOffline={handleToggleOffline}
                             onAddToQueue={addToQueue}
                             onAddToPlaylist={(t) => setTrackToAddToPlaylist(t)}
                           />
@@ -1291,6 +1477,39 @@ export default function App() {
           zIndex={20}
         />
 
+        {/* Offline notification banners */}
+        {!isOnline && (
+          <div className="fixed top-3 left-4 right-4 z-50 max-w-md mx-auto bg-amber-500/20 border border-amber-500/40 backdrop-blur-xl rounded-2xl p-2.5 px-4 flex items-center justify-between text-amber-200 text-xs shadow-2xl animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <WifiOff className="w-4 h-4 text-amber-400 flex-shrink-0" />
+              <span>Офлайн-режим • Доступны скачанные треки</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentTab('library');
+                setLibraryTab('downloads');
+              }}
+              className="text-[11px] font-semibold bg-amber-400 text-black px-2.5 py-1 rounded-full hover:bg-amber-300 transition active:scale-95 flex-shrink-0"
+            >
+              Открыть
+            </button>
+          </div>
+        )}
+
+        {offlineAlert && (
+          <div className="fixed top-3 left-4 right-4 z-50 max-w-md mx-auto bg-zinc-900/95 border border-white/20 backdrop-blur-xl rounded-2xl p-3 px-4 text-white text-xs shadow-2xl flex items-center justify-between gap-2 animate-fadeIn">
+            <span>{offlineAlert}</span>
+            <button
+              type="button"
+              onClick={() => setOfflineAlert(null)}
+              className="text-zinc-400 hover:text-white p-1"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
         {/* SPOTIFY PLAYER (Floating Mini Player + Fullscreen Spotify Modal) */}
         <SpotifyPlayer
           currentTrack={currentTrack}
@@ -1313,6 +1532,10 @@ export default function App() {
           onSpeedChange={handleSpeedChange}
           isLiked={favorites.some((f) => f.id === currentTrack?.id)}
           onToggleLike={toggleFavorite}
+          isOffline={Boolean(currentTrack && offlineTracks.some((t) => t.id === currentTrack.id))}
+          isDownloading={Boolean(currentTrack && downloadingIds.has(currentTrack.id))}
+          onToggleOffline={handleToggleOffline}
+          onExportFile={handleExportFile}
           onToggleQueue={() => setIsQueueOpen(!isQueueOpen)}
           isQueueOpen={isQueueOpen}
           onOpenAddToPlaylist={(t) => setTrackToAddToPlaylist(t)}

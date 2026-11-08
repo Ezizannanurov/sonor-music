@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { 
   Play, Pause, SkipBack, SkipForward, 
   ListMusic, ChevronDown, Shuffle, Repeat, Repeat1, 
-  Volume2, VolumeX, ListPlus, Maximize2, Sparkles, Share2
+  Volume2, VolumeX, ListPlus, Maximize2, Sparkles, Share2,
+  ArrowDownToLine, CheckCircle2, Loader2, HardDriveDownload
 } from 'lucide-react';
 import PulseHeart from './PulseHeart';
 import { Track } from '@/types/track';
@@ -29,6 +30,10 @@ interface SpotifyPlayerProps {
   onToggleQueue: () => void;
   isQueueOpen: boolean;
   onOpenAddToPlaylist?: (track: Track) => void;
+  isOffline?: boolean;
+  isDownloading?: boolean;
+  onToggleOffline?: (track: Track) => void;
+  onExportFile?: (track: Track) => void;
   isShuffle: boolean;
   onToggleShuffle: () => void;
   repeatMode: 'off' | 'all' | 'one';
@@ -58,6 +63,10 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
   onToggleQueue,
   isQueueOpen,
   onOpenAddToPlaylist,
+  isOffline = false,
+  isDownloading = false,
+  onToggleOffline,
+  onExportFile,
   isShuffle,
   onToggleShuffle,
   repeatMode,
@@ -144,6 +153,34 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
                 {currentTrack.artist}
               </div>
             </div>
+
+            {onToggleOffline && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleOffline(currentTrack);
+                }}
+                className={`p-1.5 flex-shrink-0 transition rounded-full hover:bg-white/10 active:scale-90 ${
+                  isOffline ? 'text-emerald-400' : 'text-zinc-500 hover:text-zinc-300'
+                }`}
+                title={
+                  isDownloading
+                    ? 'Скачивание...'
+                    : isOffline
+                    ? 'Сохранено офлайн (нажмите для удаления)'
+                    : 'Скачать на телефон'
+                }
+              >
+                {isDownloading ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-zinc-300" />
+                ) : isOffline ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                ) : (
+                  <ArrowDownToLine className="w-4 h-4" />
+                )}
+              </button>
+            )}
 
             <div
               className="flex-shrink-0 flex items-center justify-center"
@@ -310,7 +347,43 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 flex-shrink-0">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+                {onToggleOffline && (
+                  <button
+                    type="button"
+                    onClick={() => onToggleOffline(currentTrack)}
+                    className={`p-2 rounded-full hover:bg-white/10 transition active:scale-95 ${
+                      isOffline ? 'text-emerald-400' : 'text-zinc-400 hover:text-white'
+                    }`}
+                    title={
+                      isDownloading
+                        ? 'Скачивание трека...'
+                        : isOffline
+                        ? 'Сохранено офлайн (нажмите для удаления)'
+                        : 'Скачать на телефон для офлайн'
+                    }
+                  >
+                    {isDownloading ? (
+                      <Loader2 className="w-5 h-5 animate-spin text-zinc-300" />
+                    ) : isOffline ? (
+                      <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                    ) : (
+                      <ArrowDownToLine className="w-5 h-5" />
+                    )}
+                  </button>
+                )}
+
+                {onExportFile && (
+                  <button
+                    type="button"
+                    onClick={() => onExportFile(currentTrack)}
+                    className="p-2 rounded-full text-zinc-400 hover:text-white hover:bg-white/10 transition active:scale-95"
+                    title="Сохранить файл MP3 в память телефона"
+                  >
+                    <HardDriveDownload className="w-5 h-5" />
+                  </button>
+                )}
+
                 {onOpenAddToPlaylist && (
                   <button
                     type="button"

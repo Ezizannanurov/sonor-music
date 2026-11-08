@@ -1,6 +1,6 @@
 'use client';
 
-import { Play, Pause, Plus, ExternalLink, ListPlus } from 'lucide-react';
+import { Play, Pause, Plus, ExternalLink, ListPlus, ArrowDownToLine, CheckCircle2, Loader2 } from 'lucide-react';
 import PulseHeart from './PulseHeart';
 import ServiceLogo from './ServiceLogo';
 import { Track } from '@/types/track';
@@ -10,11 +10,14 @@ interface TrackCardProps {
   isPlaying: boolean;
   isCurrent: boolean;
   isLiked?: boolean;
+  isOffline?: boolean;
+  isDownloading?: boolean;
   index: number;
   onPlay: (track: Track) => void;
   onToggleLike?: (track: Track) => void;
   onAddToQueue?: (track: Track) => void;
   onAddToPlaylist?: (track: Track) => void;
+  onToggleOffline?: (track: Track) => void;
 }
 
 export const TrackCard: React.FC<TrackCardProps> = ({
@@ -22,11 +25,14 @@ export const TrackCard: React.FC<TrackCardProps> = ({
   isPlaying,
   isCurrent,
   isLiked = false,
+  isOffline = false,
+  isDownloading = false,
   index,
   onPlay,
   onToggleLike,
   onAddToQueue,
   onAddToPlaylist,
+  onToggleOffline,
 }) => {
   const formatDuration = (secs: number) => {
     if (!secs || isNaN(secs)) return '--:--';
@@ -122,6 +128,33 @@ export const TrackCard: React.FC<TrackCardProps> = ({
         className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
+        {onToggleOffline && (
+          <button
+            type="button"
+            onClick={() => onToggleOffline(track)}
+            className={`p-1.5 transition active:scale-90 ${
+              isOffline
+                ? 'text-emerald-400 opacity-90'
+                : 'text-zinc-500 hover:text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100'
+            }`}
+            title={
+              isDownloading
+                ? 'Скачивание на устройство...'
+                : isOffline
+                ? 'Сохранено офлайн (нажмите для удаления)'
+                : 'Скачать на телефон для офлайн'
+            }
+          >
+            {isDownloading ? (
+              <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-zinc-300" />
+            ) : isOffline ? (
+              <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
+            ) : (
+              <ArrowDownToLine className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            )}
+          </button>
+        )}
+
         {onAddToPlaylist && (
           <button
             onClick={() => onAddToPlaylist(track)}
