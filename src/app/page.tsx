@@ -35,6 +35,7 @@ import {
   clearAllOfflineTracks, 
   getOfflineAudioUrl
 } from '@/lib/offlineStorage';
+import { MediaPlayback, isNativeApp } from '@/lib/nativePlayer';
 
 const GENRES = ['Phonk', 'Synthwave', 'Hip-Hop', 'Nightcore', 'Lo-Fi', 'Rock'];
 
@@ -313,8 +314,21 @@ export default function App() {
 
   const handleSpeedChange = (newSpeed: number) => {
     setSpeed(newSpeed);
+    if (isNativeApp()) {
+      MediaPlayback.setSpeed({ speed: newSpeed }).catch(console.warn);
+    }
     if (audioRef.current) {
       audioRef.current.playbackRate = newSpeed;
+    }
+  };
+
+  const handleVolumeChange = (newVolume: number) => {
+    setVolume(newVolume);
+    if (isNativeApp()) {
+      MediaPlayback.setVolume({ volume: newVolume }).catch(console.warn);
+    }
+    if (audioRef.current) {
+      audioRef.current.volume = newVolume;
     }
   };
 
@@ -382,6 +396,59 @@ export default function App() {
       (navigator as any).wakeLock?.request('screen').catch(() => {});
     }
   }, [currentTrack, isPlaying]);
+
+  // Native Android Media Playback Synchronization & Event Listeners
+  useEffect(() => {
+    if (!isNativeApp()) return;
+
+    MediaPlayback.getPlaybackState().then((state) => {
+      if (state && state.currentTrack && state.isPlaying) {
+        setCurrentTrack({
+          id: state.currentTrack.id,
+          title: state.currentTrack.title,
+          artist: state.currentTrack.artist,
+          thumbnail: state.currentTrack.artwork || '',
+          streamUrl: state.currentTrack.url,
+          duration: state.duration || 0,
+          source: 'youtube',
+        });
+        setIsPlaying(Boolean(state.isPlaying));
+        if (state.currentTime) setCurrentTime(state.currentTime);
+        if (state.duration) setDuration(state.duration);
+      }
+    }).catch(console.warn);
+
+    const subState = MediaPlayback.addListener('playbackStateChange', (data) => {
+      setIsPlaying(data.isPlaying);
+      if (data.currentTime !== undefined) setCurrentTime(data.currentTime);
+      if (data.duration !== undefined) setDuration(data.duration);
+    });
+
+    const subTrack = MediaPlayback.addListener('trackChange', (data) => {
+      setCurrentTrack({
+        id: data.id,
+        title: data.title,
+        artist: data.artist,
+        thumbnail: data.artwork || '',
+        streamUrl: '',
+        duration: data.duration || 0,
+        source: 'youtube',
+      });
+      setIsPlaying(true);
+      if (data.duration) setDuration(data.duration);
+    });
+
+    const subTime = MediaPlayback.addListener('timeUpdate', (data) => {
+      if (data.currentTime !== undefined) setCurrentTime(data.currentTime);
+      if (data.duration !== undefined) setDuration(data.duration);
+    });
+
+    return () => {
+      subState.then((s) => s?.remove?.()).catch(() => {});
+      subTrack.then((s) => s?.remove?.()).catch(() => {});
+      subTime.then((s) => s?.remove?.()).catch(() => {});
+    };
+  }, []);
 
   // PWA Install Prompt Listener
   useEffect(() => {
@@ -514,10 +581,18 @@ export default function App() {
   const handlePlayTrack = async (track: Track) => {
     if (currentTrack?.id === track.id) {
       if (isPlaying) {
-        audioRef.current?.pause();
+        if (isNativeApp()) {
+          MediaPlayback.pause().catch(console.warn);
+        } else {
+          audioRef.current?.pause();
+        }
         setIsPlaying(false);
       } else {
-        audioRef.current?.play();
+        if (isNativeApp()) {
+          MediaPlayback.resume().catch(console.warn);
+        } else {
+          audioRef.current?.play();
+        }
         setIsPlaying(true);
       }
       return;
@@ -560,13 +635,52 @@ export default function App() {
       }
     }
 
-    if (audioRef.current) {
-      audioRef.current.src = playUrl;
-      audioRef.current.playbackRate = speed;
-      audioRef.current.play().catch((err) => {
-        console.warn('Playback error:', err);
-        setIsPlaying(false);
-      });
+    if (isNativeApp()) {
+      const backendBase = 'https://sonor-music-ubvp.onrender.com';
+      const fullPlayUrl = playUrl.startsWith('http') || playUrl.startsWith('file:')
+        ? playUrl
+        : `${backendBase}${playUrl.startsWith('/') ? '' : '/'}${playUrl}`;
+
+      const activeList =
+        currentTab === 'library'
+          ? (activePlaylist ? activePlaylist.tracks : favorites)
+          : currentTab === 'search'
+          ? searchTracks
+          : homeTracks;
+      const currIdx = activeList.findIndex((t) => t.id === track.id);
+
+      MediaPlayback.play({
+        id: track.id,
+        title: track.title,
+        artist: track.artist,
+        artwork: track.thumbnail || '',
+        url: fullPlayUrl,
+        duration: track.duration || 0,
+        index: currIdx >= 0 ? currIdx : 0,
+        queue: activeList.map((t) => ({
+          id: t.id,
+          title: t.title,
+          artist: t.artist,
+          artwork: t.thumbnail,
+          url: t.streamUrl?.startsWith('http')
+            ? t.streamUrl
+            : `${backendBase}/api/stream?title=${encodeURIComponent(t.title)}&artist=${encodeURIComponent(t.artist)}`,
+          duration: t.duration,
+        })),
+      }).catch(console.warn);
+
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    } else {
+      if (audioRef.current) {
+        audioRef.current.src = playUrl;
+        audioRef.current.playbackRate = speed;
+        audioRef.current.play().catch((err) => {
+          console.warn('Playback error:', err);
+          setIsPlaying(false);
+        });
+      }
     }
   };
 
@@ -574,6 +688,9 @@ export default function App() {
     const isDownloaded = offlineTracks.some((t) => t.id === track.id);
     if (isDownloaded) {
       await deleteOfflineTrack(track.id);
+      if (isNativeApp()) {
+        MediaPlayback.removeCachedTrack({ id: track.id }).catch(console.warn);
+      }
       setOfflineTracks((prev) => prev.filter((t) => t.id !== track.id));
       setOfflineAlert(`Трек «${track.title}» удалён из кеша.`);
       setTimeout(() => setOfflineAlert(null), 3000);
@@ -582,6 +699,13 @@ export default function App() {
       setOfflineAlert(`Кеширование «${track.title}» в память приложения...`);
       try {
         await saveTrackOffline(track);
+        if (isNativeApp()) {
+          const backendBase = 'https://sonor-music-ubvp.onrender.com';
+          const fullStreamUrl = track.streamUrl?.startsWith('http')
+            ? track.streamUrl
+            : `${backendBase}/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`;
+          MediaPlayback.cacheTrack({ id: track.id, url: fullStreamUrl }).catch(console.warn);
+        }
         const updated = await getAllOfflineTracks();
         setOfflineTracks(updated);
         setOfflineAlert(`✓ Трек «${track.title}» закеширован! Доступен без интернета.`);
@@ -693,7 +817,18 @@ export default function App() {
   };
 
   const handlePlayPause = () => {
-    if (!audioRef.current || !currentTrack) return;
+    if (!currentTrack) return;
+    if (isNativeApp()) {
+      if (isPlaying) {
+        MediaPlayback.pause().catch(console.warn);
+        setIsPlaying(false);
+      } else {
+        MediaPlayback.resume().catch(console.warn);
+        setIsPlaying(true);
+      }
+      return;
+    }
+    if (!audioRef.current) return;
     if (isPlaying) {
       audioRef.current.pause();
       setIsPlaying(false);
@@ -704,6 +839,11 @@ export default function App() {
   };
 
   const handleNext = () => {
+    if (isNativeApp()) {
+      MediaPlayback.next().catch(console.warn);
+      return;
+    }
+
     if (repeatMode === 'one' && audioRef.current) {
       audioRef.current.currentTime = 0;
       audioRef.current.play().catch(console.warn);
@@ -743,6 +883,11 @@ export default function App() {
   };
 
   const handlePrev = () => {
+    if (isNativeApp()) {
+      MediaPlayback.prev().catch(console.warn);
+      return;
+    }
+
     const activeList =
       currentTab === 'library'
         ? (activePlaylist ? activePlaylist.tracks : favorites)
@@ -1541,13 +1686,16 @@ export default function App() {
           currentTime={currentTime}
           duration={duration}
           onSeek={(time) => {
-            if (audioRef.current) {
+            if (isNativeApp()) {
+              MediaPlayback.seekTo({ position: time }).catch(console.warn);
+              setCurrentTime(time);
+            } else if (audioRef.current) {
               audioRef.current.currentTime = time;
               setCurrentTime(time);
             }
           }}
           volume={volume}
-          onVolumeChange={setVolume}
+          onVolumeChange={handleVolumeChange}
           speed={speed}
           onSpeedChange={handleSpeedChange}
           isLiked={favorites.some((f) => f.id === currentTrack?.id)}
