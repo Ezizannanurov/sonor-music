@@ -123,86 +123,87 @@ export const TrackCard: React.FC<TrackCardProps> = ({
         </div>
       </div>
 
-      {/* Right: Actions & Duration */}
+      {/* Right: Desktop Actions & Duration */}
       <div
-        className="flex items-center gap-1.5 sm:gap-3 flex-shrink-0"
+        className="flex items-center gap-2 flex-shrink-0"
         onClick={(e) => e.stopPropagation()}
       >
-        {onToggleOffline && (
-          <button
-            type="button"
-            onClick={() => onToggleOffline(track)}
-            className={`p-1.5 transition active:scale-90 ${
-              isOffline
-                ? 'text-emerald-400 opacity-90'
-                : 'text-zinc-500 hover:text-white opacity-70 sm:opacity-0 sm:group-hover:opacity-100'
-            }`}
-            title={
-              isDownloading
-                ? 'Скачивание на устройство...'
-                : isOffline
-                ? 'Сохранено офлайн (нажмите для удаления)'
-                : 'Скачать на телефон для офлайн'
-            }
-          >
-            {isDownloading ? (
-              <Loader2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 animate-spin text-zinc-300" />
-            ) : isOffline ? (
-              <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
-            ) : (
-              <ArrowDownToLine className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            )}
-          </button>
-        )}
+        {/* On mobile: completely hidden so title and artist have 100% space. On desktop: visible on hover only */}
+        <div className="hidden md:flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition">
+          {onToggleOffline && (
+            <button
+              type="button"
+              onClick={() => onToggleOffline(track)}
+              className={`p-1.5 transition active:scale-90 ${
+                isOffline ? 'text-emerald-400' : 'text-zinc-500 hover:text-white'
+              }`}
+              title={
+                isDownloading
+                  ? 'Скачивание...'
+                  : isOffline
+                  ? 'Сохранено офлайн'
+                  : 'Скачать офлайн'
+              }
+            >
+              {isDownloading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
+              ) : isOffline ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <ArrowDownToLine className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
 
-        {onAddToPlaylist && (
-          <button
-            onClick={() => onAddToPlaylist(track)}
-            className="p-1.5 text-zinc-400 hover:text-white transition opacity-70 sm:opacity-0 sm:group-hover:opacity-100 active:scale-90"
-            title="Добавить в плейлист"
-          >
-            <ListPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
-        )}
+          {onAddToPlaylist && (
+            <button
+              onClick={() => onAddToPlaylist(track)}
+              className="p-1.5 text-zinc-400 hover:text-white transition active:scale-90"
+              title="Добавить в плейлист"
+            >
+              <ListPlus className="w-3.5 h-3.5" />
+            </button>
+          )}
 
-        {onAddToQueue && (
-          <button
-            onClick={() => onAddToQueue(track)}
-            className="p-1.5 text-zinc-400 hover:text-white transition opacity-70 sm:opacity-0 sm:group-hover:opacity-100 active:scale-90"
-            title="В очередь"
-          >
-            <Plus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-          </button>
-        )}
+          {onAddToQueue && (
+            <button
+              onClick={() => onAddToQueue(track)}
+              className="p-1.5 text-zinc-400 hover:text-white transition active:scale-90"
+              title="В очередь"
+            >
+              <Plus className="w-3.5 h-3.5" />
+            </button>
+          )}
 
-        {onToggleLike && (
-          <div title="В избранное" className="flex items-center justify-center">
-            <PulseHeart
-              liked={isLiked}
-              showCount={false}
-              size={17}
-              corner={20}
-              pillColor="transparent"
-              idleColor="#71717a"
-              likedColor="#ff4d6d"
-              onChange={() => onToggleLike(track)}
-            />
-          </div>
-        )}
+          {onToggleLike && (
+            <div title="В избранное" className="flex items-center justify-center">
+              <PulseHeart
+                liked={isLiked}
+                showCount={false}
+                size={17}
+                corner={20}
+                pillColor="transparent"
+                idleColor="#71717a"
+                likedColor="#ff4d6d"
+                onChange={() => onToggleLike(track)}
+              />
+            </div>
+          )}
 
-        {track.externalUrl && (
-          <a
-            href={track.externalUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="p-1.5 text-zinc-500 hover:text-white transition opacity-0 group-hover:opacity-100"
-            title="Оригинал"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        )}
+          {track.externalUrl && (
+            <a
+              href={track.externalUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="p-1.5 text-zinc-500 hover:text-white transition"
+              title="Оригинал"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </div>
 
-        <span className="text-xs text-zinc-400 font-medium tabular-nums w-10 text-right">
+        <span className="text-xs text-zinc-400 font-medium tabular-nums min-w-[36px] text-right">
           {formatDuration(track.duration)}
         </span>
       </div>
