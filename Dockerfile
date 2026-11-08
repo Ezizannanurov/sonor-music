@@ -1,4 +1,4 @@
-FROM node:20-bookworm-slim
+FROM node:22-bookworm-slim
 
 # Install system dependencies: python3, ffmpeg, curl, and latest yt-dlp
 RUN apt-get update && apt-get install -y --no-install-recommends \
