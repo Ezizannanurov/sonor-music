@@ -42,6 +42,7 @@ export interface MediaPlaybackPlugin {
     isShuffle?: boolean;
   }>;
   cacheTrack(options: { id: string; url: string }): Promise<{ success: boolean; path: string }>;
+  saveCachedTrack(options: { id: string; base64: string }): Promise<{ success: boolean; path: string }>;
   isCached(options: { id: string }): Promise<{ isCached: boolean; path?: string }>;
   getCachedTracks(): Promise<{ cachedIds: string[] }>;
   removeCachedTrack(options: { id: string }): Promise<{ success: boolean }>;

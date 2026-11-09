@@ -33,7 +33,8 @@ import {
   saveTrackOffline, 
   deleteOfflineTrack, 
   clearAllOfflineTracks, 
-  getOfflineAudioUrl
+  getOfflineAudioUrl,
+  getOfflineRecord
 } from '@/lib/offlineStorage';
 import { MediaPlayback, isNativeApp } from '@/lib/nativePlayer';
 
@@ -704,12 +705,47 @@ export default function App() {
     });
 
     let playUrl = '';
-    try {
-      const offlineUrl = await getOfflineAudioUrl(track.id);
-      if (offlineUrl) {
-        playUrl = offlineUrl;
+    let isNativeCached = false;
+
+    if (isNativeApp()) {
+      try {
+        const nativeCheck = await MediaPlayback.isCached({ id: track.id });
+        if (nativeCheck.isCached && nativeCheck.path) {
+          playUrl = nativeCheck.path;
+          isNativeCached = true;
+        }
+      } catch {}
+
+      if (!isNativeCached) {
+        try {
+          const rec = await getOfflineRecord(track.id);
+          if (rec?.audioBuffer && rec.audioBuffer.byteLength > 5000) {
+            const bytes = new Uint8Array(rec.audioBuffer);
+            let binary = '';
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i += 8192) {
+              const chunk = bytes.subarray(i, Math.min(i + 8192, len));
+              binary += String.fromCharCode.apply(null, Array.from(chunk));
+            }
+            const b64 = btoa(binary);
+            const saved = await MediaPlayback.saveCachedTrack({ id: track.id, base64: b64 });
+            if (saved?.path) {
+              playUrl = saved.path;
+              isNativeCached = true;
+            }
+          }
+        } catch (e) {
+          console.warn('Native cache sync error:', e);
+        }
       }
-    } catch {}
+    } else {
+      try {
+        const offlineUrl = await getOfflineAudioUrl(track.id);
+        if (offlineUrl) {
+          playUrl = offlineUrl;
+        }
+      } catch {}
+    }
 
     if (!playUrl) {
       if (typeof navigator !== 'undefined' && !navigator.onLine) {
@@ -720,16 +756,16 @@ export default function App() {
       }
 
       playUrl = track.streamUrl || '';
-      if (!playUrl.startsWith('/api/stream') && !playUrl.startsWith('blob:')) {
-        if (!playUrl || playUrl.includes('apple.com') || track.source === 'spotify') {
-          playUrl = `/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&preview=${encodeURIComponent(track.streamUrl || '')}`;
-        }
+      if (!playUrl.startsWith('/api/stream') && !playUrl.startsWith('http')) {
+        playUrl = `/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&preview=${encodeURIComponent(track.streamUrl || '')}`;
       }
     }
 
     if (isNativeApp()) {
       const backendBase = 'https://sonor-music-ubvp.onrender.com';
-      const fullPlayUrl = playUrl.startsWith('http') || playUrl.startsWith('file:')
+      const fullPlayUrl = isNativeCached || playUrl.startsWith('file:') || (playUrl.startsWith('/') && !playUrl.startsWith('/api'))
+        ? playUrl
+        : playUrl.startsWith('http')
         ? playUrl
         : `${backendBase}${playUrl.startsWith('/') ? '' : '/'}${playUrl}`;
 
@@ -810,11 +846,22 @@ export default function App() {
       try {
         await saveTrackOffline(track);
         if (isNativeApp()) {
-          const backendBase = 'https://sonor-music-ubvp.onrender.com';
-          const fullStreamUrl = track.streamUrl?.startsWith('http')
-            ? track.streamUrl
-            : `${backendBase}/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`;
-          MediaPlayback.cacheTrack({ id: track.id, url: fullStreamUrl }).catch(console.warn);
+          try {
+            const rec = await getOfflineRecord(track.id);
+            if (rec?.audioBuffer && rec.audioBuffer.byteLength > 5000) {
+              const bytes = new Uint8Array(rec.audioBuffer);
+              let binary = '';
+              const len = bytes.byteLength;
+              for (let i = 0; i < len; i += 8192) {
+                const chunk = bytes.subarray(i, Math.min(i + 8192, len));
+                binary += String.fromCharCode.apply(null, Array.from(chunk));
+              }
+              const b64 = btoa(binary);
+              await MediaPlayback.saveCachedTrack({ id: track.id, base64: b64 });
+            }
+          } catch (nativeErr) {
+            console.warn('Native storage caching error:', nativeErr);
+          }
         }
         const updated = await getAllOfflineTracks();
         setOfflineTracks(updated);

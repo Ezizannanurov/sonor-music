@@ -93,6 +93,25 @@ export async function getAllOfflineTracks(): Promise<Track[]> {
 }
 
 /**
+ * Gets the raw offline record including audioBuffer for native file sync.
+ */
+export async function getOfflineRecord(trackId: string): Promise<StoredOfflineRecord | null> {
+  if (typeof window === 'undefined') return null;
+  try {
+    const db = await getDB();
+    return new Promise((resolve) => {
+      const tx = db.transaction(STORE_NAME, 'readonly');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.get(String(trackId));
+      req.onsuccess = () => resolve((req.result as StoredOfflineRecord) || null);
+      req.onerror = () => resolve(null);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Gets a blob URL for offline audio playback.
  */
 export async function getOfflineAudioUrl(trackId: string): Promise<string | null> {
