@@ -74,10 +74,15 @@ export default function ClickSpark({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    let animationId: number;
+    let animationId: number = 0;
 
     const draw = (timestamp: number) => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      if (sparksRef.current.length === 0) {
+        animationId = 0;
+        return;
+      }
 
       sparksRef.current = sparksRef.current.filter((spark) => {
         const elapsed = timestamp - spark.startTime;
@@ -115,11 +120,25 @@ export default function ClickSpark({
         return true;
       });
 
-      animationId = requestAnimationFrame(draw);
+      if (sparksRef.current.length > 0) {
+        animationId = requestAnimationFrame(draw);
+      } else {
+        animationId = 0;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
     };
 
-    animationId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animationId);
+    const startDrawIfNeeded = () => {
+      if (!animationId && sparksRef.current.length > 0) {
+        animationId = requestAnimationFrame(draw);
+      }
+    };
+
+    (canvas as any)._startSpark = startDrawIfNeeded;
+
+    return () => {
+      if (animationId) cancelAnimationFrame(animationId);
+    };
   }, [sparkColor, sparkSize, sparkRadius, sparkCount, duration, easeFunc, extraScale]);
 
   const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -138,6 +157,9 @@ export default function ClickSpark({
     }));
 
     sparksRef.current.push(...newSparks);
+    if (typeof (canvas as any)._startSpark === 'function') {
+      (canvas as any)._startSpark();
+    }
   };
 
   return (

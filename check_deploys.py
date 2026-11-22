@@ -2,7 +2,7 @@ import urllib.request
 import json
 
 url = "https://api.render.com/v1/services/srv-dbocd1lg1s2s73eprdc0/deploys?limit=3"
-headers = {"Authorization": "Bearer rnd_TGUdnMWlp0S3P6IRKrjqRs9H6M62"}
+headers = {"Authorization": "Bearer rnd_BoTTA06IkXFf4dNPcfNjQ9C4sslL"}
 req = urllib.request.Request(url, headers=headers)
 try:
     with urllib.request.urlopen(req) as resp:

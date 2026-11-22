@@ -313,21 +313,37 @@ const Scanner: React.FC<ScannerProps> = ({
     let isPageVisible = typeof document !== 'undefined' ? !document.hidden : true;
     const t0 = performance.now();
 
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      tryStop();
+    };
+    canvas.addEventListener('webglcontextlost', onContextLost, false);
+
     const loop = (t: number) => {
-      program.uniforms.iTime.value = (t - t0) * 0.001;
-
-      if (!mouseEnabledRef.current) {
-        targetMouseActive = 0;
+      if (!isVisible || !isPageVisible || (gl && gl.isContextLost())) {
+        raf = 0;
+        return;
       }
-      currentMouse[0] += 0.05 * (targetMouse[0] - currentMouse[0]);
-      currentMouse[1] += 0.05 * (targetMouse[1] - currentMouse[1]);
-      program.uniforms.uMouse.value[0] = currentMouse[0];
-      program.uniforms.uMouse.value[1] = currentMouse[1];
-      mouseActive += 0.05 * (targetMouseActive - mouseActive);
-      program.uniforms.uMouseActive.value = mouseActive;
 
-      renderer.render({ scene: mesh });
-      raf = requestAnimationFrame(loop);
+      try {
+        program.uniforms.iTime.value = (t - t0) * 0.001;
+
+        if (!mouseEnabledRef.current) {
+          targetMouseActive = 0;
+        }
+        currentMouse[0] += 0.05 * (targetMouse[0] - currentMouse[0]);
+        currentMouse[1] += 0.05 * (targetMouse[1] - currentMouse[1]);
+        program.uniforms.uMouse.value[0] = currentMouse[0];
+        program.uniforms.uMouse.value[1] = currentMouse[1];
+        mouseActive += 0.05 * (targetMouseActive - mouseActive);
+        program.uniforms.uMouseActive.value = mouseActive;
+
+        renderer.render({ scene: mesh });
+        raf = requestAnimationFrame(loop);
+      } catch (e) {
+        console.warn('WebGL render error, pausing loop:', e);
+        tryStop();
+      }
     };
 
     const tryStart = () => {
