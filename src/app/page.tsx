@@ -13,7 +13,6 @@ import JellyRadio from '@/components/JellyRadio';
 import Scanner from '@/components/Scanner';
 import GradualBlur from '@/components/GradualBlur';
 import ScrollReveal from '@/components/ScrollReveal';
-import ServiceLogo from '@/components/ServiceLogo';
 import SonorLogo from '@/components/SonorLogo';
 import ThemeModal from '@/components/ThemeModal';
 import ShinyText from '@/components/ShinyText';
@@ -66,7 +65,6 @@ export default function App() {
   };
   const [query, setQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('Phonk');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'soundcloud' | 'spotify' | 'youtube'>('all');
   
   // Theme state
   const [themeColor, setThemeColor] = useState('#6366f1');
@@ -247,18 +245,8 @@ export default function App() {
       setIsLoading(true);
     }
     try {
-      const [resSpotify, resSc] = await Promise.allSettled([
-        fetch('/api/search/spotify?q=Trending+Hits+2025').then((r) => r.json()),
-        fetch('/api/search/soundcloud?q=Phonk').then((r) => r.json()),
-      ]);
-
-      let tracks: Track[] = [];
-      if (resSpotify.status === 'fulfilled' && resSpotify.value.tracks) {
-        tracks = [...tracks, ...resSpotify.value.tracks];
-      }
-      if (resSc.status === 'fulfilled' && resSc.value.tracks) {
-        tracks = [...tracks, ...resSc.value.tracks];
-      }
+      const res = await fetch('/api/search?q=Trending+Hits+2025').then((r) => r.json()).catch(() => ({ tracks: [] }));
+      const tracks: Track[] = res.tracks || [];
 
       if (tracks.length > 0) {
         setHomeTracks(tracks);
@@ -277,20 +265,11 @@ export default function App() {
     setSelectedGenre(genre);
     setIsLoading(true);
     try {
-      const [resSpotify, resSc] = await Promise.allSettled([
-        fetch(`/api/search/spotify?q=${encodeURIComponent(genre)}`).then((r) => r.json()),
-        fetch(`/api/search/soundcloud?q=${encodeURIComponent(genre)}`).then((r) => r.json()),
-      ]);
-
-      let tracks: Track[] = [];
-      if (resSpotify.status === 'fulfilled' && resSpotify.value.tracks) {
-        tracks = [...tracks, ...resSpotify.value.tracks];
+      const res = await fetch(`/api/search?q=${encodeURIComponent(genre)}`).then((r) => r.json()).catch(() => ({ tracks: [] }));
+      const tracks: Track[] = res.tracks || [];
+      if (tracks.length > 0) {
+        setHomeTracks(tracks);
       }
-      if (resSc.status === 'fulfilled' && resSc.value.tracks) {
-        tracks = [...tracks, ...resSc.value.tracks];
-      }
-
-      setHomeTracks(tracks);
     } catch (err) {
       console.error(err);
     } finally {
@@ -609,48 +588,8 @@ export default function App() {
     let combined: Track[] = [];
 
     try {
-      const promises: Promise<any>[] = [];
-
-      if (sourceFilter === 'all' || sourceFilter === 'spotify') {
-        promises.push(
-          fetch(`/api/search/spotify?q=${encodeURIComponent(q)}`)
-            .then((r) => r.json())
-            .then((d) => d.tracks || [])
-            .catch(() => [])
-        );
-      }
-
-      if (sourceFilter === 'all' || sourceFilter === 'soundcloud') {
-        promises.push(
-          fetch(`/api/search/soundcloud?q=${encodeURIComponent(q)}`)
-            .then((r) => r.json())
-            .then((d) => d.tracks || [])
-            .catch(() => [])
-        );
-      }
-
-      if (sourceFilter === 'all' || sourceFilter === 'youtube') {
-        promises.push(
-          fetch(`/api/search/youtube?q=${encodeURIComponent(q)}`)
-            .then((r) => r.json())
-            .then((d) => d.tracks || [])
-            .catch(() => [])
-        );
-      }
-
-      const results = await Promise.all(promises);
-      if (sourceFilter === 'all') {
-        const maxLen = Math.max(...results.map((r: any[]) => r.length), 0);
-        const interleaved: Track[] = [];
-        for (let i = 0; i < maxLen; i++) {
-          for (const resList of results) {
-            if (resList[i]) interleaved.push(resList[i]);
-          }
-        }
-        combined = interleaved;
-      } else {
-        combined = results.flat();
-      }
+      const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`).then((r) => r.json());
+      combined = res.tracks || [];
 
       // Rank tracks that match both title and artist keywords to the top
       const qTokens = q.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
@@ -911,7 +850,7 @@ export default function App() {
     setActiveHomeCategoryTitle(`Микс: ${mix.subtitle}`);
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/search/spotify?q=${encodeURIComponent(mix.searchQuery)}`).then((r) => r.json());
+      const res = await fetch(`/api/search?q=${encodeURIComponent(mix.searchQuery)}`).then((r) => r.json());
       if (res.tracks && res.tracks.length > 0) {
         setHomeTracks(res.tracks);
         handlePlayTrack(res.tracks[0]);
@@ -928,7 +867,7 @@ export default function App() {
     setActiveHomeCategoryTitle(`Настроение: ${mood.name}`);
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/search/spotify?q=${encodeURIComponent(mood.query)}`).then((r) => r.json());
+      const res = await fetch(`/api/search?q=${encodeURIComponent(mood.query)}`).then((r) => r.json());
       if (res.tracks && res.tracks.length > 0) {
         setHomeTracks(res.tracks);
         handlePlayTrack(res.tracks[0]);
@@ -945,7 +884,7 @@ export default function App() {
     setActiveHomeCategoryTitle(`Исполнитель: ${artist.name}`);
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/search/spotify?q=${encodeURIComponent(artist.query)}`).then((r) => r.json());
+      const res = await fetch(`/api/search?q=${encodeURIComponent(artist.query)}`).then((r) => r.json());
       if (res.tracks && res.tracks.length > 0) {
         setHomeTracks(res.tracks);
         handlePlayTrack(res.tracks[0]);
@@ -962,7 +901,7 @@ export default function App() {
     setActiveHomeCategoryTitle(`Альбом: ${album.title}`);
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/search/spotify?q=${encodeURIComponent(album.query)}`).then((r) => r.json());
+      const res = await fetch(`/api/search?q=${encodeURIComponent(album.query)}`).then((r) => r.json());
       if (res.tracks && res.tracks.length > 0) {
         setHomeTracks(res.tracks);
         handlePlayTrack(res.tracks[0]);
@@ -1372,59 +1311,6 @@ export default function App() {
                 >
                   Найти
                 </button>
-              </div>
-
-              {/* Source Switcher using JellyRadio */}
-              <div className="flex items-center gap-2 pb-2 border-b border-white/5 overflow-x-auto scrollbar-none">
-                <span className="text-zinc-500 text-xs font-medium flex-shrink-0">Источник:</span>
-                <JellyRadio
-                  items={[
-                    { value: 'all', label: 'Все' },
-                    {
-                      value: 'spotify',
-                      label: (
-                        <span className="inline-flex items-center gap-1.5">
-                          <ServiceLogo source="spotify" className="w-3.5 h-3.5" />
-                          <span>Spotify</span>
-                        </span>
-                      ),
-                    },
-                    {
-                      value: 'soundcloud',
-                      label: (
-                        <span className="inline-flex items-center gap-1.5">
-                          <ServiceLogo source="soundcloud" className="w-3.5 h-3.5" />
-                          <span>SoundCloud</span>
-                        </span>
-                      ),
-                    },
-                    {
-                      value: 'youtube',
-                      label: (
-                        <span className="inline-flex items-center gap-1.5">
-                          <ServiceLogo source="youtube" className="w-3.5 h-3.5" />
-                          <span>YouTube Music</span>
-                        </span>
-                      ),
-                    },
-                  ]}
-                  value={sourceFilter}
-                  onChange={(val) => setSourceFilter(val as any)}
-                  chipColor="#18181b"
-                  activeColor="#ffffff"
-                  textColor="#a1a1aa"
-                  activeTextColor="#09090b"
-                  size="sm"
-                  gap={6}
-                  radius={16}
-                  swell={0.2}
-                  barge={5}
-                  shrink={0.05}
-                  jelly={1}
-                  bounce={0.25}
-                  stagger={22}
-                  stiffness={580}
-                />
               </div>
 
               {/* Search Results */}

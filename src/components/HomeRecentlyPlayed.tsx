@@ -3,7 +3,6 @@
 import React from 'react';
 import { Play, Pause, Clock, Trash2 } from 'lucide-react';
 import { Track } from '@/types/track';
-import ServiceLogo from './ServiceLogo';
 
 interface HomeRecentlyPlayedProps {
   recentTracks: Track[];
@@ -97,9 +96,8 @@ export const HomeRecentlyPlayed: React.FC<HomeRecentlyPlayedProps> = ({
                 <div className="text-xs sm:text-sm font-semibold text-white truncate leading-snug">
                   {track.title}
                 </div>
-                <div className="text-[11px] text-zinc-400 truncate mt-0.5 flex items-center gap-1">
+                <div className="text-[11px] text-zinc-400 truncate mt-0.5">
                   <span className="truncate">{track.artist}</span>
-                  <ServiceLogo source={track.source} className="w-2.5 h-2.5 flex-shrink-0 opacity-60" />
                 </div>
               </div>
 

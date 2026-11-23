@@ -9,7 +9,6 @@ import {
 } from 'lucide-react';
 import PulseHeart from './PulseHeart';
 import { Track } from '@/types/track';
-import ServiceLogo from './ServiceLogo';
 
 interface SpotifyPlayerProps {
   currentTrack: Track | null;
@@ -143,9 +142,8 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
             </div>
 
             <div className="truncate min-w-0 flex-1 pr-2">
-              <div className="text-xs sm:text-sm font-bold text-white truncate flex items-center gap-1.5">
-                <span className="truncate">{currentTrack.title}</span>
-                <ServiceLogo source={currentTrack.source} className="w-3 h-3 flex-shrink-0 opacity-70" />
+              <div className="text-xs sm:text-sm font-bold text-white truncate">
+                {currentTrack.title}
               </div>
               <div className="text-[11px] text-zinc-400 truncate mt-0.5 font-medium">
                 {currentTrack.artist}
@@ -249,10 +247,6 @@ export const SpotifyPlayer: React.FC<SpotifyPlayerProps> = ({
               <span className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
                 СЕЙЧАС ИГРАЕТ
               </span>
-              <div className="text-xs text-white font-medium flex items-center justify-center gap-1.5 mt-0.5">
-                <ServiceLogo source={currentTrack.source} className="w-3.5 h-3.5" />
-                <span className="capitalize">{currentTrack.source}</span>
-              </div>
             </div>
 
             <button

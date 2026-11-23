@@ -2,7 +2,6 @@
 
 import { Play, Pause, Plus, ExternalLink, ListPlus, ArrowDownToLine, CheckCircle2, Loader2 } from 'lucide-react';
 import PulseHeart from './PulseHeart';
-import ServiceLogo from './ServiceLogo';
 import { Track } from '@/types/track';
 
 interface TrackCardProps {
@@ -104,21 +103,8 @@ export const TrackCard: React.FC<TrackCardProps> = ({
               {track.title}
             </span>
           </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs text-zinc-400 truncate mt-0.5">
+          <div className="flex items-center gap-1.5 text-[11px] sm:text-xs text-zinc-400 truncate mt-0.5">
             <span className="truncate">{track.artist}</span>
-            <span className="text-zinc-600 font-light">•</span>
-            <span
-              className="inline-flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
-              title={
-                track.source === 'spotify'
-                  ? 'Spotify'
-                  : track.source === 'soundcloud'
-                  ? 'SoundCloud'
-                  : 'YouTube Music'
-              }
-            >
-              <ServiceLogo source={track.source} className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
-            </span>
           </div>
         </div>
       </div>
