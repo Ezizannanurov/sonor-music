@@ -12,7 +12,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: "Sonor — Музыка без границ",
+  title: "Sonor",
   description: "Единый персональный музыкальный стример: SoundCloud, YouTube и Spotify в одном приложении",
   manifest: "/manifest.json",
   appleWebApp: {

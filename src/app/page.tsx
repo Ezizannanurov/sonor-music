@@ -14,6 +14,7 @@ import Scanner from '@/components/Scanner';
 import GradualBlur from '@/components/GradualBlur';
 import ScrollReveal from '@/components/ScrollReveal';
 import ServiceLogo from '@/components/ServiceLogo';
+import SonorLogo from '@/components/SonorLogo';
 import ThemeModal from '@/components/ThemeModal';
 import ShinyText from '@/components/ShinyText';
 import ClickSpark from '@/components/ClickSpark';
@@ -373,7 +374,7 @@ export default function App() {
       navigator.mediaSession.metadata = new MediaMetadata({
         title: currentTrack.title,
         artist: currentTrack.artist,
-        album: 'Sonor Music',
+        album: 'Sonor',
         artwork: currentTrack.thumbnail
           ? [
               { src: currentTrack.thumbnail, sizes: '96x96', type: 'image/png' },
@@ -1144,13 +1145,8 @@ export default function App() {
         {/* Top Header */}
         <header className="sticky top-0 z-30 bg-black/85 backdrop-blur-xl border-b border-white/5 px-3 sm:px-6 py-2.5 sm:py-3 pt-[calc(0.75rem+env(safe-area-inset-top,0px))] flex items-center justify-between">
           <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
-            <div
-              className="w-8 h-8 rounded-xl bg-white text-black flex items-center justify-center font-bold transition-all duration-300 shadow-sm"
-              style={{
-                boxShadow: `0 0 16px var(--accent-glow, rgba(255,255,255,0.3))`,
-              }}
-            >
-              <Activity className="w-5 h-5 stroke-[2.5]" />
+            <div className="flex-shrink-0 transition-transform active:scale-95 duration-200">
+              <SonorLogo className="w-8 h-8 rounded-xl shadow-lg" size={32} />
             </div>
             <div className="flex items-center gap-1.5">
               <ShinyText

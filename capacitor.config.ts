@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'fm.pulse.music',
-  appName: 'Sonor Music',
+  appName: 'Sonor',
   webDir: 'public',
   server: {
     url: 'https://sonor-music-ubvp.onrender.com',

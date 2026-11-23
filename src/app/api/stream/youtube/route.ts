@@ -113,7 +113,7 @@ export async function GET(request: Request) {
     try {
       const mp3Url = await resolveFullMp3Url(title, artist, searchQuery);
       if (mp3Url) {
-        return await streamAudioResponse(mp3Url, range);
+        return NextResponse.redirect(mp3Url, 302);
       }
     } catch (mp3Err) {
       console.warn('MP3 catalog fallback error:', mp3Err);

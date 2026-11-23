@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import scdl from 'soundcloud-scraper';
 import { Readable } from 'stream';
 import axios from 'axios';
+import { resolveFullMp3Url } from '@/lib/mp3Resolver';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const Util = require('soundcloud-scraper/src/util/Util');
@@ -187,7 +188,20 @@ export async function GET(request: Request) {
     }
   }
 
-  // 4. Deezer Search Fallback (High-quality studio MP3)
+  // 4. Resolve Full Studio MP3 (100% full-length 320kbps track - eliminates 30s clips!)
+  if (title || artist || query) {
+    try {
+      const fullMp3 = await resolveFullMp3Url(title, artist, query);
+      if (fullMp3) {
+        cache.set(cacheKey, { audioUrl: fullMp3, resolvedAt: Date.now() });
+        return NextResponse.redirect(fullMp3, 302);
+      }
+    } catch (mp3Err) {
+      console.warn('resolveFullMp3Url fallback error in /api/stream:', mp3Err);
+    }
+  }
+
+  // 5. Deezer Search Fallback (Only if no full version was found anywhere)
   if (title || artist || query) {
     const dzStream = await searchDeezerStream(title, artist, query);
     if (dzStream) {
@@ -196,13 +210,13 @@ export async function GET(request: Request) {
     }
   }
 
-  // 5. Explicit clean preview passed from client
+  // 6. Explicit clean preview passed from client (last resort demo preview)
   if (cleanPreview) {
     cache.set(cacheKey, { audioUrl: cleanPreview, resolvedAt: Date.now() });
     return NextResponse.redirect(cleanPreview, 302);
   }
 
-  // 6. iTunes Search Fallback
+  // 7. iTunes Search Fallback
   if (title || artist || query) {
     const itStream = await searchItunesStream(title, artist, query);
     if (itStream) {
